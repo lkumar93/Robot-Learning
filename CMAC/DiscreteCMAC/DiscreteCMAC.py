@@ -4,7 +4,7 @@ import math
 import random
 
 class DiscreteCMAC:
-    def __init__(self,  generalization_factor, function, training_set_size = 7500, input_space_size = 10000, minimum_input_value = 0, maximum_input_value = 360, error_threshold = 0.05,learning_rate = 0.1):
+    def __init__(self,  generalization_factor, function, training_set_size = 750, input_space_size = 1000, minimum_input_value = 0, maximum_input_value = 360, error_threshold = 0.05,learning_rate = 0.1):
  
         self.function = function
  	self.training_set_size = training_set_size
@@ -67,7 +67,7 @@ class DiscreteCMAC:
 		while local_convergence is False :
 			local_CMAC_output = 0						
 			for j in range(0,self.generalization_factor):
-				global_neighborhood_index = global_index - j - self.neighborhood_parsing_factor
+				global_neighborhood_index = global_index - (j - self.neighborhood_parsing_factor)
 				if global_neighborhood_index >= 0 and global_neighborhood_index < self.input_space_size :
 					self.weights[global_neighborhood_index] = self.weights[global_neighborhood_index] + (error/self.generalization_factor)*self.learning_rate
 					local_CMAC_output = local_CMAC_output + (self.input_space[global_neighborhood_index] * self.weights[global_neighborhood_index])
@@ -92,7 +92,7 @@ class DiscreteCMAC:
 	for i in range(0,len(dataset_input)) :
 		global_index = dataset_global_indices[i]
 		for j in range(0,self.generalization_factor) :
-			global_neighborhood_index = global_index - j - self.neighborhood_parsing_factor
+			global_neighborhood_index = global_index - (j - self.neighborhood_parsing_factor)
 			if global_neighborhood_index >= 0 and global_neighborhood_index < self.input_space_size :
 				local_CMAC_output[i] = local_CMAC_output[i] + (self.input_space[global_neighborhood_index] * self.weights[global_neighborhood_index])
 		error = dataset_true_output[i] - local_CMAC_output[i]
@@ -137,6 +137,6 @@ class DiscreteCMAC:
 	plotter.show()
 
 
-SineWaveCMAC= DiscreteCMAC(131,math.sin)
+SineWaveCMAC= DiscreteCMAC(5,math.sin)
 SineWaveCMAC.execute()
 SineWaveCMAC.plot_graphs()
