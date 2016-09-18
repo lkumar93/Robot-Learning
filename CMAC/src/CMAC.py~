@@ -88,7 +88,7 @@ class CMAC:
 	
     def train(self):	
 	error = 1000
-	self.ConvergenceTime = time.time();
+	self.ConvergenceTime = Time.time();
 	for i in range(0,self.training_set_size) :
 		local_convergence = False		
 		global_index = self.training_set_global_indices[i]
