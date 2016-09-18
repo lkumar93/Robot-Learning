@@ -4,7 +4,7 @@ import math
 import random
 
 class DiscreteCMAC:
-    def __init__(self,  generalization_factor, function, training_set_size = 50, input_space_size = 100, minimum_input_value = 0, maximum_input_value = 360, error_threshold = 0.02,learning_rate = 0.3):
+    def __init__(self,  generalization_factor, function, training_set_size = 50, input_space_size = 100, minimum_input_value = 0, maximum_input_value = 360, error_threshold = 0.05,learning_rate = 0.3):
  
         self.function = function
  	self.training_set_size = training_set_size
@@ -106,15 +106,24 @@ class DiscreteCMAC:
 	self.train()
 	self.training_set_CMAC_output,TrainingSuccessPercentage = self.test(self.training_set_input,self.training_set_output,self.training_set_global_indices)
 	print "Training Success Percentage " + str(TrainingSuccessPercentage)
-	print "Training set input"
-	print self.training_set_input
-	print "CMAC output"
-	print self.training_set_CMAC_output
-	print "Training set output"
-	print self.training_set_output
+	
 	self.testing_set_CMAC_output,TestingSuccessPercentage = self.test(self.testing_set_input,self.testing_set_true_output,self.testing_set_global_indices)
 	print "Testing Success Percentage " + str(TestingSuccessPercentage)
+	plotter.figure(1)
+	plotter.subplot(221)
+	plotter.plot(self.training_set_input,self.training_set_CMAC_output,'ro')
+	plotter.title('Training data CMAC output')
+	plotter.subplot(222)
+	plotter.plot(self.training_set_input,self.training_set_output,'ro')
+	plotter.title('Training data True output')
+	plotter.subplot(223)
+	plotter.plot(self.testing_set_input,self.testing_set_CMAC_output,'ro')
+	plotter.title('Test Data CMAC output')
+	plotter.subplot(224)
+	plotter.plot(self.testing_set_input,self.testing_set_true_output,'ro')
+	plotter.title('Test Data True output')
+	plotter.show()
 
 
-SineWaveCMAC= DiscreteCMAC(3,math.sin)
+SineWaveCMAC= DiscreteCMAC(5,math.sin)
 SineWaveCMAC.execute()
