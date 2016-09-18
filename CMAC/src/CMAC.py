@@ -13,7 +13,7 @@ plot_input_space_size = 100
 input_space_split_data_size = int((max_input_space_size - min_input_space_size ) / float(input_space_step_size))
 
 
-class DiscreteCMAC:
+class CMAC:
     def __init__(self,  generalization_factor, function, input_space_size = 100, dataset_split_factor = 1.5,  minimum_input_value = 0, maximum_input_value = 360, error_threshold = 0.02, learning_rate = 0.1):
  
         self.function = function
@@ -158,12 +158,12 @@ class DiscreteCMAC:
 
 
 def RunCMAC() :
-	SineWaveCMAC= [ DiscreteCMAC(i,math.sin,plot_input_space_size) for i in range(min_generalization_factor,max_generalization_factor + 1) ]
+	SineWaveCMAC= [ CMAC(i,math.sin,plot_input_space_size) for i in range(min_generalization_factor,max_generalization_factor + 1) ]
 	TrainingErrorRange = [ 0 for i in range(0,max_generalization_factor) ]
 	TestingErrorRange = [ 0 for i in range(0,max_generalization_factor) ]
 
 	for i in range( 0, max_generalization_factor ) :
-	#SineWaveCMAC= DiscreteCMAC(4,math.sin)
+	#SineWaveCMAC= CMAC(4,math.sin)
 		TrainingErrorRange[i],TestingErrorRange[i] = SineWaveCMAC[i].execute()
 		if i is plot_generalization_factor -1 :
 			SineWaveCMAC[i].plot_graphs()
@@ -181,7 +181,7 @@ def RunCMAC() :
 	plotter.title(' \n Generalization Factor Vs Testing Error')
 	plotter.show()
 
-	SineWaveCMAC= [ DiscreteCMAC(plot_generalization_factor,math.sin,i) for i in range(min_input_space_size, max_input_space_size, input_space_step_size) ]
+	SineWaveCMAC= [ CMAC(plot_generalization_factor,math.sin,i) for i in range(min_input_space_size, max_input_space_size, input_space_step_size) ]
 	TrainingErrorRange = [ 0 for i in range(0,input_space_split_data_size) ]
 	TestingErrorRange = [ 0 for i in range(0,input_space_split_data_size) ]
 
