@@ -7,6 +7,7 @@
 # AUTHOR : LAKSHMAN KUMAR
 # AFFILIATION : UNIVERSITY OF MARYLAND, MARYLAND ROBOTICS CENTER
 # EMAIL : LKUMAR93@UMD.EDU
+# LINKEDIN : WWW.LINKEDIN.COM/IN/LAKSHMANKUMAR1993
 #
 # THE WORK (AS DEFINED BELOW) IS PROVIDED UNDER THE TERMS OF THE MIT LICENSE
 # THE WORK IS PROTECTED BY COPYRIGHT AND/OR OTHER APPLICABLE LAW. ANY USE OF
@@ -17,7 +18,6 @@
 # CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND
 # CONDITIONS.
 #
-
 import matplotlib.pyplot as plotter
 import simplegui
 import math
@@ -29,7 +29,7 @@ max_generalization_factor = 50
 min_generalization_factor = 1
 max_input_space_size = 2000
 min_input_space_size = 100
-input_space_step_size = 50
+input_space_step_size = 100
 plot_generalization_factor = 41
 plot_input_space_size = 1000
 input_space_split_data_size = int((max_input_space_size - min_input_space_size ) / float(input_space_step_size))
