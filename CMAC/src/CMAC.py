@@ -6,6 +6,7 @@
 #
 # AUTHOR : LAKSHMAN KUMAR
 # AFFILIATION : UNIVERSITY OF MARYLAND, MARYLAND ROBOTICS CENTER
+# EMAIL : LKUMAR93@UMD.EDU
 #
 # THE WORK (AS DEFINED BELOW) IS PROVIDED UNDER THE TERMS OF THE MIT LICENSE
 # THE WORK IS PROTECTED BY COPYRIGHT AND/OR OTHER APPLICABLE LAW. ANY USE OF
@@ -35,7 +36,7 @@ input_space_split_data_size = int((max_input_space_size - min_input_space_size )
 
 
 class CMAC:
-    def __init__(self,  generalization_factor, function, input_space_size = 100, CMACType = 'CONTINUOUS', dataset_split_factor = 1.5,  minimum_input_value = 0, maximum_input_value = 360, error_threshold = 0.02, learning_rate = 0.1):
+    def __init__(self,  generalization_factor, function, input_space_size = 100, CMACType = 'CONTINUOUS', dataset_split_factor = 1.5,  minimum_input_value = 0, maximum_input_value = 360, error_threshold = 0.02, learning_rate = 0.1, convergence_threshold = 0.03, max_convergence_iterations = 20):
  
         self.function = function
  	self.training_set_size = int(input_space_size/dataset_split_factor)
@@ -60,8 +61,12 @@ class CMAC:
 	self.testing_set_CMAC_output = [ 0 for i in range(0,self.testing_set_size) ]
 	self.testing_set_global_indices = [ 0 for i in range(0,self.testing_set_size) ]
 	self.learning_rate = learning_rate
-	self.TrainingError = 0.0
-	self.TestingError = 0.0
+	self.TrainingError = 1.0
+	self.TestingError = 1.0
+	self.convergence_threshold = convergence_threshold
+	self.max_convergence_iterations = max_convergence_iterations
+	self.convergence = False
+	self.convergence_time = 1000
 
 
     def create_datasets(self):
@@ -88,7 +93,6 @@ class CMAC:
 	
     def train(self):	
 	error = 1000
-	self.ConvergenceTime = time.time();
 	for i in range(0,self.training_set_size) :
 		local_convergence = False		
 		global_index = self.training_set_global_indices[i]
@@ -140,15 +144,25 @@ class CMAC:
 
     def execute(self):
 	self.create_datasets()
-	self.train()
-	self.training_set_CMAC_output,TrainingCumulativeError = self.test(self.training_set_input,self.training_set_output,self.training_set_global_indices)
-	self.TrainingError = TrainingCumulativeError/self.training_set_size
-	#print "Training Error = " + str(self.TrainingError)
+	iterations = 0
+	self.convergence_time = time.time()
 	
+	while self.TestingError > self.convergence_threshold and iterations < self.max_convergence_iterations :
+		self.train()
+		self.training_set_CMAC_output,TrainingCumulativeError = self.test(self.training_set_input,self.training_set_output,self.training_set_global_indices)
+		self.TrainingError = TrainingCumulativeError/self.training_set_size
+		#print "Training Error = " + str(self.TrainingError)
 	
-	self.testing_set_CMAC_output,TestingCumulativeError = self.test(self.testing_set_input,self.testing_set_true_output,self.testing_set_global_indices)
-	self.TestingError = TestingCumulativeError/self.testing_set_size
-	#print "Testing Error = " + str(self.TestingError)
+		self.testing_set_CMAC_output,TestingCumulativeError = self.test(self.testing_set_input,self.testing_set_true_output,self.testing_set_global_indices)
+		self.TestingError = TestingCumulativeError/self.testing_set_size
+		#print "Testing Error = " + str(self.TestingError)
+		iterations = iterations + 1
+
+	if self.TestingError <= self.convergence_threshold :
+		self.convergence = True
+		self.convergence_time = time.time() - self.convergence_time
+		print ' GeneralizationFactor= '+str(self.generalization_factor) +' InputSize= '+ str(self.input_space_size)+'Time = '+ str(self.convergence_time)
+		
 	return self.TrainingError, self.TestingError
 
 	
@@ -194,17 +208,17 @@ class CMAC:
 
 
 
-def PlotCMACPerformance(TrainingErrorDiscreteRange,TestingErrorDiscreteRange,TrainingErrorContinuousRange,TestingErrorContinuousRange,xlabel_value) :
+def PlotCMACPerformance(TrainingErrorDiscreteRange, TestingErrorDiscreteRange, TrainingErrorContinuousRange, TestingErrorContinuousRange, DiscreteConvergenceTimes, ContinuousConvergenceTimes, xlabel_value) :
 	
 	print xlabel_value
-	if xlabel_value is str('GeneralizationFactor') :
-		
+	if xlabel_value is str('GeneralizationFactor') :		
 		RangeValues = range(1,max_generalization_factor + 1)
 		Value = ' Input Space Size = ' + str(plot_input_space_size)
 	else :
 		RangeValues = range(min_input_space_size, max_input_space_size, input_space_step_size)
 		Value = ' Generalization Factor = ' + str(plot_generalization_factor)
 	plotter.figure(figsize=(20,11))
+	plotter.suptitle( xlabel_value+' Vs Error' )
 	plotter.subplot(221)
 	plotter.plot(RangeValues,TrainingErrorDiscreteRange )
 	plotter.xlabel(xlabel_value)
@@ -228,38 +242,67 @@ def PlotCMACPerformance(TrainingErrorDiscreteRange,TestingErrorDiscreteRange,Tra
 	plotter.subplots_adjust(0.1, 0.08, 0.89, 0.89,0.2, 0.35)
 	plotter.show()
 
+	plotter.figure(figsize=(20,11))
+	plotter.subplot(211)
+	plotter.suptitle( xlabel_value+' Vs Convergence Times' )
+	plotter.plot(RangeValues,DiscreteConvergenceTimes )
+	plotter.xlabel(xlabel_value)
+	plotter.ylabel('Convergence Times')
+	plotter.title('DISCRETE CMAC ')
+	plotter.subplot(212)
+	plotter.plot(RangeValues,ContinuousConvergenceTimes )
+	plotter.xlabel(xlabel_value)
+	plotter.ylabel('Convergence Times')
+	plotter.title('Continuous CMAC ')
+	plotter.subplots_adjust(0.29, 0.10, 0.71, 0.88,0.18, 0.59)
+	plotter.show()
+	
 
-def RunCMAC() :
-	SineWaveDiscreteCMAC= [ CMAC(i,math.sin,plot_input_space_size,'DISCRETE') for i in range(min_generalization_factor,max_generalization_factor + 1) ]
-	SineWaveContinuousCMAC= [ CMAC(i,math.sin,plot_input_space_size,'CONTINUOUS') for i in range(min_generalization_factor,max_generalization_factor + 1) ]
+
+def RunCMAC(function) :
+	DiscreteCMAC= [ CMAC(i,function,plot_input_space_size,'DISCRETE') for i in range(min_generalization_factor,max_generalization_factor + 1) ]
+	ContinuousCMAC= [ CMAC(i, function,plot_input_space_size,'CONTINUOUS') for i in range(min_generalization_factor,max_generalization_factor + 1) ]
 	TrainingErrorDiscreteRange = [ 0 for i in range(0,max_generalization_factor) ]
 	TestingErrorDiscreteRange = [ 0 for i in range(0,max_generalization_factor) ]
 	TrainingErrorContinuousRange = [ 0 for i in range(0,max_generalization_factor) ]
 	TestingErrorContinuousRange = [ 0 for i in range(0,max_generalization_factor) ]
+	DiscreteConvergenceTimes = [ 1 for i in range(0,max_generalization_factor) ]
+	ContinuousConvergenceTimes = [ 1 for i in range(0,max_generalization_factor) ]
 
 	for i in range( 0, max_generalization_factor ) :
-		TrainingErrorDiscreteRange[i],TestingErrorDiscreteRange[i] = SineWaveDiscreteCMAC[i].execute()
-		TrainingErrorContinuousRange[i],TestingErrorContinuousRange[i] = SineWaveContinuousCMAC[i].execute()
+		TrainingErrorDiscreteRange[i],TestingErrorDiscreteRange[i] = DiscreteCMAC[i].execute()
+		TrainingErrorContinuousRange[i],TestingErrorContinuousRange[i] = ContinuousCMAC[i].execute()
+		if DiscreteCMAC[i].convergence is True :
+			DiscreteConvergenceTimes[i]  = DiscreteCMAC[i].convergence_time
+		if ContinuousCMAC[i].convergence is True :
+			ContinuousConvergenceTimes[i] = ContinuousCMAC[i].convergence_time
 		if i is plot_generalization_factor -1 :
-			SineWaveDiscreteCMAC[i].plot_graphs()
-			SineWaveContinuousCMAC[i].plot_graphs()
+			DiscreteCMAC[i].plot_graphs()
+			ContinuousCMAC[i].plot_graphs()
 
-	PlotCMACPerformance(TrainingErrorDiscreteRange,TestingErrorDiscreteRange,TrainingErrorContinuousRange,TestingErrorContinuousRange, 'GeneralizationFactor' )
+	PlotCMACPerformance(TrainingErrorDiscreteRange, TestingErrorDiscreteRange, TrainingErrorContinuousRange, TestingErrorContinuousRange, DiscreteConvergenceTimes, ContinuousConvergenceTimes, 'GeneralizationFactor' )
 	
-	SineWaveDiscreteCMAC= [ CMAC(plot_generalization_factor,math.sin,i,'DISCRETE') for i in range(min_input_space_size, max_input_space_size, input_space_step_size) ]
-	SineWaveContinuousCMAC= [ CMAC(plot_generalization_factor,math.sin,i,'CONTINUOUS') for i in range(min_input_space_size, max_input_space_size, input_space_step_size) ]
+	DiscreteCMAC = [ CMAC(plot_generalization_factor, function,i,'DISCRETE') for i in range(min_input_space_size, max_input_space_size, input_space_step_size) ]
+	ContinuousCMAC= [ CMAC(plot_generalization_factor, function,i,'CONTINUOUS') for i in range(min_input_space_size, max_input_space_size, input_space_step_size) ]
+
 	TrainingErrorDiscreteRange = [ 0 for i in range(0,input_space_split_data_size) ]
 	TrainingErrorContinuousRange = [ 0 for i in range(0,input_space_split_data_size) ]
 	TestingErrorDiscreteRange = [ 0 for i in range(0,input_space_split_data_size) ]
 	TestingErrorContinuousRange = [ 0 for i in range(0,input_space_split_data_size) ]
+	DiscreteConvergenceTimes = [ 1 for i in range(0,input_space_split_data_size) ]
+	ContinuousConvergenceTimes = [ 1 for i in range(0,input_space_split_data_size) ]
 
 	for i in range( 0, input_space_split_data_size ) :
-		TrainingErrorDiscreteRange[i],TestingErrorDiscreteRange[i] = SineWaveDiscreteCMAC[i].execute()
-		TrainingErrorContinuousRange[i],TestingErrorContinuousRange[i] = SineWaveContinuousCMAC[i].execute()	
+		TrainingErrorDiscreteRange[i],TestingErrorDiscreteRange[i] = DiscreteCMAC[i].execute()
+		TrainingErrorContinuousRange[i],TestingErrorContinuousRange[i] = ContinuousCMAC[i].execute()
+		if DiscreteCMAC[i].convergence is True :
+			DiscreteConvergenceTimes[i]  = DiscreteCMAC[i].convergence_time
+		if ContinuousCMAC[i].convergence is True :
+			ContinuousConvergenceTimes[i] = ContinuousCMAC[i].convergence_time	
 
-	PlotCMACPerformance(TrainingErrorDiscreteRange,TestingErrorDiscreteRange,TrainingErrorContinuousRange,TestingErrorContinuousRange, 'InputSpaceSize' )		
+	PlotCMACPerformance(TrainingErrorDiscreteRange, TestingErrorDiscreteRange, TrainingErrorContinuousRange, TestingErrorContinuousRange, DiscreteConvergenceTimes, ContinuousConvergenceTimes, 'InputSpaceSize' )		
 
 
 
 if __name__ == '__main__':
-	RunCMAC()
+	RunCMAC(math.sin)
