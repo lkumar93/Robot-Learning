@@ -1,4 +1,4 @@
-#
+	#
 # THIS IS AN IMPLEMENTATION OF CEREBELLAR MODEL ARTICULATION CONTROLLER
 # PROPOSED BY JAMES ALBUS IN 1975
 #
@@ -29,19 +29,22 @@ import time
 #Initialize Variables Required To Test CMAC
 max_generalization_factor = 50
 min_generalization_factor = 1
-max_input_space_size = 2000
+max_input_space_size = 2100
 min_input_space_size = 100
-input_space_step_size = 100
-plot_generalization_factor = 41
-plot_input_space_size = 1000
+input_space_step_size = 200
+plot_generalization_factor = 35
+plot_input_space_size = 700
 input_space_split_data_size = int((max_input_space_size - min_input_space_size ) / float(input_space_step_size))
 
+#Return Mean Squared Error Between The Desired Output And The Actual Output
+def MeanSquaredError( DesiredOutput, ActualOutput) :
+	return ( 0.5 * ( math.pow( DesiredOutput , 2 ) - math.pow( ActualOutput , 2 ) ) )
 
 #Create A Common Framework For Creating CMAC Objects
 class CMAC:
 
     #Initialize The Object With User Specified Values And Function
-    def __init__(self,  generalization_factor, function, input_space_size = 100, CMACType = 'CONTINUOUS', dataset_split_factor = 1.5,  minimum_input_value = 0, maximum_input_value = 360, error_threshold = 0.02, learning_rate = 0.1, convergence_threshold = 0.03, max_convergence_iterations = 20):
+    def __init__(self,  generalization_factor, function, input_space_size = 100, CMACType = 'CONTINUOUS', dataset_split_factor = 1.5,  minimum_input_value = 0, maximum_input_value = 360, local_convergence_threshold = 0.001, learning_rate = 0.15, global_convergence_threshold = 0.001, max_global_convergence_iterations = 20):
  
         self.function = function
  	self.training_set_size = int(input_space_size/dataset_split_factor)
@@ -53,7 +56,7 @@ class CMAC:
 	self.maximum_input_value = maximum_input_value
 	self.step_size = (maximum_input_value - minimum_input_value)/float(input_space_size)
 	self.neighborhood_parsing_factor = int(math.floor(generalization_factor/2))
-	self.error_threshold = error_threshold
+	self.local_convergence_threshold = local_convergence_threshold
 	self.weights = [ 0 for i in range(0,self.input_space_size) ]
 	self.input_space = [ math.radians(self.step_size*(i+1)) for i in range(0,self.input_space_size) ]
 	self.output_space = [ self.function(self.input_space[i])  for i in range(0,self.input_space_size) ]
@@ -68,8 +71,8 @@ class CMAC:
 	self.learning_rate = learning_rate
 	self.TrainingError = 1.0
 	self.TestingError = 1.0
-	self.convergence_threshold = convergence_threshold
-	self.max_convergence_iterations = max_convergence_iterations
+	self.global_convergence_threshold = global_convergence_threshold
+	self.max_global_convergence_iterations = max_global_convergence_iterations
 	self.convergence = False
 	self.convergence_time = 1000
 
@@ -104,7 +107,6 @@ class CMAC:
 		global_index = self.training_set_global_indices[i]
 		error = 0
 		iteration = 0
-		CMACTypeWeight = 0
 		ErrorComputingOffset = 0
 		
 		#Compute An Offset To Account For When Computing Weights For Edge Cases, Where You May Not Get The Specified Neighborhood Size
@@ -126,23 +128,12 @@ class CMAC:
 					#Compute The Output
 					local_CMAC_output = local_CMAC_output + (self.input_space[global_neighborhood_index] * self.weights[global_neighborhood_index])
 
-			
-			#If Type Of CMAC Selected Is Discrete Round Off Training Output To 1 Decimal Point When Computing Error 
-			#And Local Convergence Criteria
-			if self.CMACType is 'DISCRETE' :
-				error = round(self.training_set_output[i],1) - local_CMAC_output
-				CMACTypeWeight = 0.05
-				
-			#Else Dont Round Off
-			else :
-				error = self.training_set_output[i] - local_CMAC_output
-				
+			error = self.training_set_output[i] - local_CMAC_output		
 
 			iteration = iteration + 1
 			
 			#Local Convergence Is Achieved If Absolute Value Of Error Is Within The Threshold
-			#Also Declare Local Convergence For Edge Cases When Number Of Iterations Go Beyond 10
-			if abs(error) <= (self.error_threshold + CMACTypeWeight ) or (global_neighborhood_index < 0 and iteration > 10):
+			if abs(MeanSquaredError(self.training_set_output[i],local_CMAC_output)) <= (self.local_convergence_threshold):
 				local_convergence = True
 		
 
@@ -159,7 +150,7 @@ class CMAC:
 		error = dataset_true_output[i] - local_CMAC_output[i]
 		
 		#Add Up All The Accumulated Errors
-		CumulativeError = CumulativeError + abs(error)
+		CumulativeError = CumulativeError + abs(MeanSquaredError( dataset_true_output[i] , local_CMAC_output[i] ) )
 
 	if self.CMACType is 'DISCRETE':
 		#If Discrete Round Off All The Elements In The Output
@@ -173,20 +164,28 @@ class CMAC:
 	iterations = 0
 	self.convergence_time = time.time()
 	
-	#Repeat Until Testing Error Goes Below Convergence Threshold Or Number Of Iterations Exceed Max Iterations Required For Convergence
-	while self.TestingError > self.convergence_threshold and iterations < self.max_convergence_iterations :
+	#Repeat Until Number Of Iterations Exceed Max Iterations Required For Convergence And Break If Global Convergence Occurs
+	while iterations < self.max_global_convergence_iterations :
 		self.train()
+
 		self.training_set_CMAC_output,TrainingCumulativeError = self.test(self.training_set_input,self.training_set_output,self.training_set_global_indices)
 		self.TrainingError = TrainingCumulativeError/self.training_set_size
 	
 		self.testing_set_CMAC_output,TestingCumulativeError = self.test(self.testing_set_input,self.testing_set_true_output,self.testing_set_global_indices)
 		self.TestingError = TestingCumulativeError/self.testing_set_size
+
 		iterations = iterations + 1
 
+		if self.TestingError <= self.global_convergence_threshold :
+			break 
+		
+		#print iterations
+
 	#If Testing Error Is Below Convergence Threshold Then Global Convergence Is Achieved Within The Maximum Number Of Iterations
-	if self.TestingError <= self.convergence_threshold :
+	if self.TestingError <= self.global_convergence_threshold :
 		self.convergence = True
-		self.convergence_time = time.time() - self.convergence_time
+	
+	self.convergence_time = time.time() - self.convergence_time
 		
 	return self.TrainingError, self.TestingError
 
@@ -290,20 +289,27 @@ def RunCMAC(function) :
 	TestingErrorDiscreteRange = [ 0 for i in range(0,max_generalization_factor) ]
 	TrainingErrorContinuousRange = [ 0 for i in range(0,max_generalization_factor) ]
 	TestingErrorContinuousRange = [ 0 for i in range(0,max_generalization_factor) ]
-	DiscreteConvergenceTimes = [ 1 for i in range(0,max_generalization_factor) ]
-	ContinuousConvergenceTimes = [ 1 for i in range(0,max_generalization_factor) ]
+	DiscreteConvergenceTimes = [ 100 for i in range(0,max_generalization_factor) ]
+	ContinuousConvergenceTimes = [ 100 for i in range(0,max_generalization_factor) ]
 	BestDiscreteCMAC = -1
 	BestContinuousCMAC = -1
 	LowestDiscreteTestingError = 1000
 	LowestContinuousTestingError = 1000
 
+	print ' \n  Plot Generalization Factor = ' + str(plot_generalization_factor) + ' with Errors \n'
+	
+	ContinuousCMAC[plot_generalization_factor].execute()
+	ContinuousCMAC[plot_generalization_factor].plot_graphs('InputSpaceSize')
+	
+	print ' \n Generalization Factor Variance - CMAC Performance \n '
 	for i in range( 0, max_generalization_factor ) :
 		TrainingErrorDiscreteRange[i],TestingErrorDiscreteRange[i] = DiscreteCMAC[i].execute()
 		TrainingErrorContinuousRange[i],TestingErrorContinuousRange[i] = ContinuousCMAC[i].execute()
-		if DiscreteCMAC[i].convergence is True :
-			DiscreteConvergenceTimes[i]  = DiscreteCMAC[i].convergence_time
-		if ContinuousCMAC[i].convergence is True :
-			ContinuousConvergenceTimes[i] = ContinuousCMAC[i].convergence_time
+		print 'Generalization Factor - ' + str(i+1) +' Continuous Testing Error - ' + str(round(TestingErrorContinuousRange[i],3))+ ' Continuous Convergence Time - ' + str(round(ContinuousCMAC[i].convergence_time,2)) + ' Discrete Testing Error - ' + str(round(TestingErrorDiscreteRange[i],3)) 
+		#if DiscreteCMAC[i].convergence is True :
+		DiscreteConvergenceTimes[i]  = DiscreteCMAC[i].convergence_time
+		#if ContinuousCMAC[i].convergence is True :
+		ContinuousConvergenceTimes[i] = ContinuousCMAC[i].convergence_time
 		if TestingErrorDiscreteRange[i] < LowestDiscreteTestingError  :
 			LowestDiscreteTestingError = TestingErrorDiscreteRange[i]
 			BestDiscreteCMAC = i
@@ -325,6 +331,7 @@ def RunCMAC(function) :
 	#Plot Performance Graphs With Increasing Generalization Factor
 	PlotCMACPerformance(TrainingErrorDiscreteRange, TestingErrorDiscreteRange, TrainingErrorContinuousRange, TestingErrorContinuousRange, DiscreteConvergenceTimes, ContinuousConvergenceTimes, 'GeneralizationFactor' )
 	
+	print ' \n Input Space Size Variance - CMAC Performance \n'
 
 	#Find How Testing Error Varies With Increase In Input Space Size Also Find The Best CMAC For The Given Generalization Factor
 	DiscreteCMAC = [ CMAC(plot_generalization_factor, function,i,'DISCRETE') for i in range(min_input_space_size, max_input_space_size, input_space_step_size) ]
@@ -340,20 +347,23 @@ def RunCMAC(function) :
 	BestContinuousCMAC = -1
 	LowestDiscreteTestingError = 1000
 	LowestContinuousTestingError = 1000
+	InputSize = min_input_space_size
 
 	for i in range( 0, input_space_split_data_size ) :
 		TrainingErrorDiscreteRange[i],TestingErrorDiscreteRange[i] = DiscreteCMAC[i].execute()
 		TrainingErrorContinuousRange[i],TestingErrorContinuousRange[i] = ContinuousCMAC[i].execute()
-		if DiscreteCMAC[i].convergence is True :
-			DiscreteConvergenceTimes[i]  = DiscreteCMAC[i].convergence_time
-		if ContinuousCMAC[i].convergence is True :
-			ContinuousConvergenceTimes[i] = ContinuousCMAC[i].convergence_time
+		print 'Input Space Size - ' + str(InputSize) +' Continuous Testing Error - ' + str(round(TestingErrorContinuousRange[i],3))+ ' Continuous Convergence Time - ' + str(round(ContinuousCMAC[i].convergence_time,2)) + ' Discrete Testing Error - ' + str(round(TestingErrorDiscreteRange[i],3)) 
+		#if DiscreteCMAC[i].convergence is True :
+		DiscreteConvergenceTimes[i]  = DiscreteCMAC[i].convergence_time
+		#if ContinuousCMAC[i].convergence is True :
+		ContinuousConvergenceTimes[i] = ContinuousCMAC[i].convergence_time
 		if TestingErrorDiscreteRange[i] < LowestDiscreteTestingError  :
 			LowestDiscreteTestingError = TestingErrorDiscreteRange[i]
 			BestDiscreteCMAC = i
 		if TestingErrorContinuousRange[i] < LowestContinuousTestingError :
 			LowestContinuousTestingError = TestingErrorContinuousRange[i]
 			BestContinuousCMAC = i
+		InputSize = InputSize + (max_input_space_size - min_input_space_size)/input_space_split_data_size
 
  
 	if BestDiscreteCMAC  is not  -1 :
