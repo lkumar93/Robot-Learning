@@ -1,4 +1,4 @@
-	#
+#
 # THIS IS AN IMPLEMENTATION OF CEREBELLAR MODEL ARTICULATION CONTROLLER
 # PROPOSED BY JAMES ALBUS IN 1975
 #
@@ -32,86 +32,84 @@ min_generalization_factor = 1
 max_input_space_size = 2100
 min_input_space_size = 100
 input_space_step_size = 200
-plot_generalization_factor = 35
-plot_input_space_size = 700
+plot_generalization_factor = 31
+plot_input_space_size = 600
+minimum_output_value = -1.0
+maximum_output_value = 1.0
 input_space_split_data_size = int((max_input_space_size - min_input_space_size ) / float(input_space_step_size))
 
 #Return Mean Squared Error Between The Desired Output And The Actual Output
 def MeanSquaredError( DesiredOutput, ActualOutput) :
-	return ( 0.5 * ( math.pow( DesiredOutput , 2 ) - math.pow( ActualOutput , 2 ) ) )
+	mean_squared_error = ( 0.5 * ( math.pow( DesiredOutput , 2 ) - math.pow( ActualOutput , 2 ) ) )
+	return mean_squared_error
+
+#Return Index Of The Nearest Element To The Value In The Array
+def find_nearest(array,value):
+	values = [ value  for i in range(0,len(array)) ]
+	idx = (numpy.abs(numpy.array(array)-numpy.array(values))).argmin()
+	return idx
 
 #Create A Common Framework For Creating CMAC Objects
 class CMAC:
 
     #Initialize The Object With User Specified Values And Function
-    def __init__(self,  generalization_factor, function, input_space_size = 100, CMACType = 'CONTINUOUS', dataset_split_factor = 1.5,  minimum_input_value = 0, maximum_input_value = 360, local_convergence_threshold = 0.001, learning_rate = 0.15, global_convergence_threshold = 0.001, max_global_convergence_iterations = 20):
+    def __init__(self,  generalization_factor, dataset, CMAC_type = 'CONTINUOUS', minimum_output_value = minimum_output_value, maximum_output_value = maximum_output_value, local_convergence_threshold = 0.001, learning_rate = 0.15, global_convergence_threshold = 0.001, max_global_convergence_iterations = 20):
  
-        self.function = function
- 	self.training_set_size = int(input_space_size/dataset_split_factor)
-	self.testing_set_size = input_space_size - self.training_set_size
         self.generalization_factor = generalization_factor
-	self.input_space_size = input_space_size
-	self.CMACType = CMACType
-	self.minimum_input_value = minimum_input_value
-	self.maximum_input_value = maximum_input_value
-	self.step_size = (maximum_input_value - minimum_input_value)/float(input_space_size)
-	self.neighborhood_parsing_factor = int(math.floor(generalization_factor/2))
-	self.local_convergence_threshold = local_convergence_threshold
-	self.weights = [ 0 for i in range(0,self.input_space_size) ]
-	self.input_space = [ math.radians(self.step_size*(i+1)) for i in range(0,self.input_space_size) ]
-	self.output_space = [ self.function(self.input_space[i])  for i in range(0,self.input_space_size) ]
-	self.training_set_input = [ 0 for i in range(0,self.training_set_size) ]
-	self.training_set_output = [ 0 for i in range(0,self.training_set_size) ]
+
+	self.neighborhood_parsing_factor = int(math.floor(generalization_factor/2))	
+
+	self.input_space = dataset[0]
+	self.output_space = dataset[1]
+	self.input_space_size = len(self.input_space)
+	self.training_set_input = dataset[2]
+	self.training_set_output = dataset[3]
+	self.training_set_size = len(dataset[2])
+	self.training_set_global_indices = dataset[4]
 	self.training_set_CMAC_output = [ 0 for i in range(0,self.training_set_size) ]
-	self.training_set_global_indices = [ 0 for i in range(0,self.training_set_size) ]
-	self.testing_set_input = [ 0 for i in range(0,self.testing_set_size) ]
-	self.testing_set_true_output = [ 0 for i in range(0,self.testing_set_size) ]
+
+	self.weights = [ 0 for i in range(0,self.input_space_size) ]
+
+	self.testing_set_input = dataset[5]
+	self.testing_set_true_output = dataset[6]
+	self.testing_set_global_indices = dataset[7]
+	self.testing_set_size = len(dataset[5])
 	self.testing_set_CMAC_output = [ 0 for i in range(0,self.testing_set_size) ]
-	self.testing_set_global_indices = [ 0 for i in range(0,self.testing_set_size) ]
-	self.learning_rate = learning_rate
+
+	self.minimum_output_value = minimum_output_value 
+	self.maximum_output_value = maximum_output_value
+
 	self.TrainingError = 1.0
 	self.TestingError = 1.0
+
+	self.CMAC_type = CMAC_type
+
+	self.local_convergence_threshold = local_convergence_threshold
+	self.learning_rate = learning_rate
+
 	self.global_convergence_threshold = global_convergence_threshold
 	self.max_global_convergence_iterations = max_global_convergence_iterations
 	self.convergence = False
 	self.convergence_time = 1000
 
-    #Split The Input Space Into Training Dataset And Testing Dataset Based On 'dataset_split_factor'
-    def create_datasets(self):
-	count = 0;
-	randomized_range_values = [ x for x in range(0,self.input_space_size) ]
-	random.shuffle(randomized_range_values)
-
-	for i in randomized_range_values :
-
-		if count < self.training_set_size :
-			self.training_set_input[count] = self.input_space[i]
-			self.training_set_output[count] = self.output_space[i]
-			self.training_set_CMAC_output[count] = 0
-			self.training_set_global_indices[count] = i
-
-		else :
-			
-			self.testing_set_input[count - self.training_set_size] = self.input_space[i]
-			self.testing_set_true_output[count - self.training_set_size] = self.output_space[i]
-			self.testing_set_CMAC_output[count - self.training_set_size] = 0
-			self.testing_set_global_indices[count - self.training_set_size] = i
-		
-		count = count + 1
-
     #Train The CMAC With Training Data Until Each Of The DataPoints Achieve Local Convergence	
     def train(self):	
 	error = 1000
+	#print range(0,self.training_set_size)
 	for i in range(0,self.training_set_size) :
 		local_convergence = False		
+		#print len(self.training_set_global_indices)
 		global_index = self.training_set_global_indices[i]
 		error = 0
 		iteration = 0
-		ErrorComputingOffset = 0
+		generalization_factor_offset = 0
 		
 		#Compute An Offset To Account For When Computing Weights For Edge Cases, Where You May Not Get The Specified Neighborhood Size
 		if i - self.neighborhood_parsing_factor < 0 :
-			ErrorComputingOffset = i - self.neighborhood_parsing_factor
+			generalization_factor_offset = i - self.neighborhood_parsing_factor
+
+		if i + self.neighborhood_parsing_factor >= self.training_set_size :
+			generalization_factor_offset = self.training_set_size - (i + self.neighborhood_parsing_factor) 
 		
 		#Repeat Till You Achieve Local Convergence
 		while local_convergence is False :
@@ -119,18 +117,24 @@ class CMAC:
 			#Compute Weights Based On The Neighborhood Of The Data Point, That Is Specified By 'generalization_factor'	
 			for j in range(0,self.generalization_factor):
 				global_neighborhood_index = global_index - (j - self.neighborhood_parsing_factor)
-				
+							
 				#Make Sure The Index Is Not Beyond Limit When Taking Into Account The Generalization Factor
 				if global_neighborhood_index >= 0 and global_neighborhood_index < self.input_space_size :
 					 
 					#Update Weights According To The Computed Error
-					self.weights[global_neighborhood_index] = self.weights[global_neighborhood_index] + (error/(self.generalization_factor+ErrorComputingOffset))*self.learning_rate
+					self.weights[global_neighborhood_index] = self.weights[global_neighborhood_index] + (error/(self.generalization_factor+generalization_factor_offset))*self.learning_rate
 					#Compute The Output
 					local_CMAC_output = local_CMAC_output + (self.input_space[global_neighborhood_index] * self.weights[global_neighborhood_index])
+					#print self.weights[global_neighborhood_index]
 
-			error = self.training_set_output[i] - local_CMAC_output		
+			error = self.training_set_output[i] - local_CMAC_output
+			#print 	self.training_set_output[i]	
+			#print local_CMAC_output
 
 			iteration = iteration + 1
+		
+			if iteration > 25 :
+				break
 			
 			#Local Convergence Is Achieved If Absolute Value Of Error Is Within The Threshold
 			if abs(MeanSquaredError(self.training_set_output[i],local_CMAC_output)) <= (self.local_convergence_threshold):
@@ -138,29 +142,44 @@ class CMAC:
 		
 
     #Test CMAC With Argument Datasets Which May Be The Testing Data Or Training Data		
-    def test(self, dataset_input, dataset_true_output, dataset_global_indices):
+    def test(self, DatasetType):
 	CumulativeError = 0;
+	
+
+	if DatasetType is 'TestingData' :
+		dataset_input = self.testing_set_input
+		dataset_true_output = self.testing_set_true_output
+		dataset_global_indices = self.testing_set_global_indices
+
+	else :
+		dataset_input = self.training_set_input
+		dataset_true_output = self.training_set_output
+		dataset_global_indices = self.training_set_global_indices
+
 	local_CMAC_output = [ 0 for i in range(0,len(dataset_input)) ]
+	
 	for i in range(0,len(dataset_input)) :
 		global_index = dataset_global_indices[i]
 		for j in range(0,self.generalization_factor) :
 			global_neighborhood_index = global_index - (j - self.neighborhood_parsing_factor)
-			if global_neighborhood_index >= 0 and global_neighborhood_index < self.input_space_size :
+			#print global_neighborhood_index
+			if global_neighborhood_index >= 0 and global_neighborhood_index < self.input_space_size:
 				local_CMAC_output[i] = local_CMAC_output[i] + (self.input_space[global_neighborhood_index] * self.weights[global_neighborhood_index])
+			
+
 		error = dataset_true_output[i] - local_CMAC_output[i]
 		
 		#Add Up All The Accumulated Errors
 		CumulativeError = CumulativeError + abs(MeanSquaredError( dataset_true_output[i] , local_CMAC_output[i] ) )
 
-	if self.CMACType is 'DISCRETE':
+	if self.CMAC_type is 'DISCRETE':
 		#If Discrete Round Off All The Elements In The Output
 		return numpy.around(local_CMAC_output,decimals = 1), CumulativeError
 	else:
-		return local_CMAC_output, CumulativeError	
+		return local_CMAC_output, CumulativeError		
 		
     #Train And Test Data Until You Achieve Global Convergence
     def execute(self):
-	self.create_datasets()
 	iterations = 0
 	self.convergence_time = time.time()
 	
@@ -168,22 +187,20 @@ class CMAC:
 	while iterations < self.max_global_convergence_iterations :
 		self.train()
 
-		self.training_set_CMAC_output,TrainingCumulativeError = self.test(self.training_set_input,self.training_set_output,self.training_set_global_indices)
+		self.training_set_CMAC_output,TrainingCumulativeError = self.test('TrainingData')
 		self.TrainingError = TrainingCumulativeError/self.training_set_size
 	
-		self.testing_set_CMAC_output,TestingCumulativeError = self.test(self.testing_set_input,self.testing_set_true_output,self.testing_set_global_indices)
+		self.testing_set_CMAC_output,TestingCumulativeError = self.test('TestingData')
 		self.TestingError = TestingCumulativeError/self.testing_set_size
 
 		iterations = iterations + 1
 
+		#If Testing Error Is Below Convergence Threshold Then Global Convergence Is Achieved Within The Maximum Number Of Iterations
 		if self.TestingError <= self.global_convergence_threshold :
+			self.convergence = True
 			break 
-		
-		#print iterations
 
-	#If Testing Error Is Below Convergence Threshold Then Global Convergence Is Achieved Within The Maximum Number Of Iterations
-	if self.TestingError <= self.global_convergence_threshold :
-		self.convergence = True
+	
 	
 	self.convergence_time = time.time() - self.convergence_time
 		
@@ -193,22 +210,19 @@ class CMAC:
     #Plot CMAC's Input Space Size Vs Data & Generalization Factor Vs Data Graphs
     def plot_graphs(self,Header):
 		
-	sorted_testing_set_input = [x for (y,x) in sorted(zip(self.testing_set_global_indices,self.testing_set_input))]
-	sorted_testing_set_CMAC_output = [x for (y,x) in sorted(zip(self.testing_set_global_indices,self.testing_set_CMAC_output))]
-	sorted_training_set_input = [x for (y,x) in sorted(zip(self.training_set_global_indices,self.training_set_input))]
-	sorted_training_set_CMAC_output = [x for (y,x) in sorted(zip(self.training_set_global_indices,self.training_set_CMAC_output))]
 	plotter.figure(figsize=(20,10))
-	plotter.suptitle(' Best '+ self.CMACType + ' CMAC With Fixed ' + Header)
+	plotter.suptitle(' Best '+ str(self.CMAC_type) + ' CMAC With Fixed ' + Header)
 	plotter.subplot(221)
 	plotter.plot(self.training_set_input,self.training_set_output,'ro')
 	plotter.title(' Input Space Size = ' + str(self.input_space_size) + '\n Training data' )
 	plotter.ylabel('True Output, sin(x)')
 	plotter.xlabel('Input , x')
 	plotter.subplot(223)
-	if self.CMACType is 'DISCRETE' :
-		plotter.step(sorted_training_set_input,sorted_training_set_CMAC_output)
-	else :
-		plotter.plot(sorted_training_set_input,sorted_training_set_CMAC_output)
+	plotter.ylim((self.minimum_output_value,self.maximum_output_value))
+	#if self.CMAC_type is 'DISCRETE' :
+	#	plotter.step(self.training_set_input,self.training_set_CMAC_output)
+	#else :
+	plotter.plot(self.training_set_input,self.training_set_CMAC_output,'ro')
 	plotter.ylabel('CMAC Output')
 	plotter.xlabel('Input')
 	plotter.title('\n Training Error = ' + str(self.TrainingError))
@@ -218,14 +232,16 @@ class CMAC:
 	plotter.ylabel('True Output, sin(x)')
 	plotter.xlabel('Input , x')
 	plotter.subplot(224)
-	if self.CMACType is 'DISCRETE' :
-		plotter.step(sorted_testing_set_input,sorted_testing_set_CMAC_output)
-	else :
-		plotter.plot(sorted_testing_set_input,sorted_testing_set_CMAC_output)
+	plotter.ylim((self.minimum_output_value,self.maximum_output_value))
+	#if self.CMAC_type is 'DISCRETE' :
+	#	plotter.step(self.testing_set_input,self.testing_set_CMAC_output)
+	#else :
+	plotter.plot(self.testing_set_input,self.testing_set_CMAC_output,'ro')
 	plotter.ylabel('CMAC Output')
 	plotter.xlabel('Input')
 	plotter.title('\n Testing Error = ' + str(self.TestingError))
 	plotter.subplots_adjust(0.1, 0.08, 0.89, 0.89,0.2, 0.35)
+
 	plotter.show()
 
 
@@ -277,14 +293,61 @@ def PlotCMACPerformance(TrainingErrorDiscreteRange, TestingErrorDiscreteRange, T
 	plotter.title('Continuous CMAC ')
 	plotter.subplots_adjust(0.29, 0.10, 0.71, 0.88,0.18, 0.59)
 	plotter.show()
+
+
+def GenerateDataset(function, input_space_size = plot_input_space_size, minimum_input_value = 0, maximum_input_value = 360, dataset_split_factor = 1.5) :
+
+	step_size = (maximum_input_value - minimum_input_value)/float(input_space_size)
+
+	input_space = [ math.radians(step_size*(i+1)) for i in range(0,input_space_size) ]
+	output_space = [ function(input_space[i])  for i in range(0,input_space_size) ]
 	
+	training_set_size = int(input_space_size/dataset_split_factor)
+	testing_set_size = input_space_size - training_set_size 
+
+	unsorted_training_set_input = [ 0  for i in range(0,training_set_size) ]
+	unsorted_training_set_output  = [ 0  for i in range(0,training_set_size)]
+	training_set_global_indices = [ 0  for i in range(0,training_set_size)]
+
+	unsorted_testing_set_input = [ 0  for i in range(0,testing_set_size) ]
+	unsorted_testing_set_true_output  = [ 0  for i in range(0,testing_set_size)]
+	testing_set_global_indices  = [ 0  for i in range(0,testing_set_size)]
+	
+	count = 0;
+	randomized_range_values = [ x for x in range(0,input_space_size) ]
+	random.shuffle(randomized_range_values)
+
+	for i in randomized_range_values :
+
+		if count < training_set_size :
+			unsorted_training_set_input[count] = input_space[i]
+			unsorted_training_set_output[count] = output_space[i]
+			training_set_global_indices[count] = i
+
+		else :
+			
+			unsorted_testing_set_input[count - training_set_size] = input_space[i]
+			unsorted_testing_set_true_output[count - training_set_size] = output_space[i]
+			testing_set_global_indices[count - training_set_size] = i
+		
+		count = count + 1
+
+	#sorted_training_set_input = [x for (y,x) in sorted(zip(training_set_global_indices,unsorted_training_set_input))] 
+	#sorted_training_set_output = [x for (y,x) in sorted(zip(training_set_global_indices,unsorted_training_set_output))]
+	#sorted_testing_set_input =  [x for (y,x) in sorted(zip(testing_set_global_indices,unsorted_testing_set_input))] 
+	#sorted_testing_set_output =  [x for (y,x) in sorted(zip(testing_set_global_indices,unsorted_testing_set_true_output))] 
+
+	
+	return [input_space,output_space,unsorted_training_set_input, unsorted_training_set_output,training_set_global_indices, unsorted_testing_set_input, unsorted_testing_set_true_output,testing_set_global_indices]
 
 # Run CMAC Function And Generate Graphs 
 def RunCMAC(function) :
 
+	Dataset = GenerateDataset(function)
+
 	#Find How Testing Error Varies With Increase In Generalization Factor Also Find The Best CMAC For The Given Input Size
-	DiscreteCMAC= [ CMAC(i,function,plot_input_space_size,'DISCRETE') for i in range(min_generalization_factor,max_generalization_factor + 1) ]
-	ContinuousCMAC= [ CMAC(i, function,plot_input_space_size,'CONTINUOUS') for i in range(min_generalization_factor,max_generalization_factor + 1) ]
+	DiscreteCMAC= [ CMAC(i,Dataset, 'DISCRETE') for i in range(min_generalization_factor,max_generalization_factor + 1) ]
+	ContinuousCMAC= [ CMAC(i, Dataset, 'CONTINUOUS') for i in range(min_generalization_factor,max_generalization_factor + 1) ]
 	TrainingErrorDiscreteRange = [ 0 for i in range(0,max_generalization_factor) ]
 	TestingErrorDiscreteRange = [ 0 for i in range(0,max_generalization_factor) ]
 	TrainingErrorContinuousRange = [ 0 for i in range(0,max_generalization_factor) ]
@@ -334,8 +397,8 @@ def RunCMAC(function) :
 	print ' \n Input Space Size Variance - CMAC Performance \n'
 
 	#Find How Testing Error Varies With Increase In Input Space Size Also Find The Best CMAC For The Given Generalization Factor
-	DiscreteCMAC = [ CMAC(plot_generalization_factor, function,i,'DISCRETE') for i in range(min_input_space_size, max_input_space_size, input_space_step_size) ]
-	ContinuousCMAC= [ CMAC(plot_generalization_factor, function,i,'CONTINUOUS') for i in range(min_input_space_size, max_input_space_size, input_space_step_size) ]
+	DiscreteCMAC = [ CMAC(plot_generalization_factor, GenerateDataset(function,i),'DISCRETE') for i in range(min_input_space_size, max_input_space_size, input_space_step_size) ]
+	ContinuousCMAC= [ CMAC(plot_generalization_factor, GenerateDataset(function,i),'CONTINUOUS') for i in range(min_input_space_size, max_input_space_size, input_space_step_size) ]
 
 	TrainingErrorDiscreteRange = [ 0 for i in range(0,input_space_split_data_size) ]
 	TrainingErrorContinuousRange = [ 0 for i in range(0,input_space_split_data_size) ]
@@ -379,7 +442,7 @@ def RunCMAC(function) :
 	#Plot Performance Graphs With Increasing Input Space Size
 	PlotCMACPerformance(TrainingErrorDiscreteRange, TestingErrorDiscreteRange, TrainingErrorContinuousRange, TestingErrorContinuousRange, DiscreteConvergenceTimes, ContinuousConvergenceTimes, 'InputSpaceSize' )		
 
-
+	
 
 if __name__ == '__main__':
 	#Train CMAC To Learn The Sinusoidal Function And Evaluate Its Performance On Test Dataset
