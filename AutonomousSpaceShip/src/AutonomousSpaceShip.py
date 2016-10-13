@@ -1,5 +1,5 @@
 #
-# THIS IS AN IMPLEMENTATION OF THE CLASSIC SPACE SHIP GAME IN 2D
+# THIS IS AN IMPLEMENTATION OF A SELF DRIVING SPACE SHIP
 #
 # COPYRIGHT BELONGS TO THE AUTHOR OF THIS CODE
 #
@@ -87,6 +87,9 @@ class Ship:
         self.image_center = info.get_center()
         self.image_size = info.get_size()
         self.radius = info.get_radius()
+	self.closest_obstacle= None
+	self.distance_to_closest_obstacle = 1000
+	self.angle_to_closest_obstacle = 0
         
     def draw(self,canvas):
         if self.thrust:
@@ -107,17 +110,14 @@ class Ship:
        
         if self.thrust:
             acc = angle_to_vector(self.angle)
-            self.vel[0] += acc[0] * .1
-            self.vel[1] += acc[1] * .1
+            self.vel[0] += acc[0] * .3
+            self.vel[1] += acc[1] * .3
             self.vel[0] *= .99
             self.vel[1] *= .99
 	else :
 	    self.vel[0] *= 0
             self.vel[1] *= 0
             
-
-
-
     def set_thrust(self, on):
         self.thrust = on
         if on:
@@ -127,10 +127,10 @@ class Ship:
             ship_thrust_sound.pause()
        
     def increment_angle_vel(self):
-        self.angle_vel += .05
+        self.angle_vel += .1
         
     def decrement_angle_vel(self):
-        self.angle_vel -= .05
+        self.angle_vel -= .1
         
     def shoot(self):
         global missile_group
@@ -138,16 +138,58 @@ class Ship:
         missile_pos = [self.pos[0] + self.radius * forward[0], self.pos[1] + self.radius * forward[1]]
         missile_vel = [self.vel[0] + 6 * forward[0], self.vel[1] + 6 * forward[1]]
         a_missile = Sprite(missile_pos, missile_vel, self.angle, 0, missile_image, missile_info, missile_sound)
-        
-      
+           
         missile_group.add(a_missile)
         
-        
+    def obstacle_detection(self, ObstacleGroup) :
+
+	distance_to_closest_obstacle = 10000
+	angle_to_closest_obstacle = 0
+	closest_obstacle = None
+	
+	for g in list(ObstacleGroup) :
+		obstacle_position = g.get_position()
+		obstacle_radius = g.get_radius()
+		horizontal_distance = (self.pos[0] - obstacle_position[0])
+		vertical_distance = (self.pos[1] - obstacle_position[1])
+		offset = self.radius + obstacle_radius
+		euclidean_distance = dist(self.pos, obstacle_position) - offset
+		angle = math.degrees(math.atan2(vertical_distance,horizontal_distance))
+		
+		if euclidean_distance < distance_to_closest_obstacle :
+			distance_to_closest_obstacle = euclidean_distance
+			angle_to_closest_obstacle = angle
+			closest_obstacle = g
+
+	self.closest_obstacle = closest_obstacle
+	self.distance_to_closest_obstacle = distance_to_closest_obstacle	
+	angle =self.get_angle() + angle_to_closest_obstacle
+	
+	if angle < -180 :
+		angle = angle + 270
+
+	self.angle_to_closest_obstacle = angle 
+
+	return self.closest_obstacle
+
     def get_position(self):
         return self.pos
     
     def get_radius(self):
         return self.radius
+
+    def get_angle(self):
+	return abs(math.degrees(self.angle))%360-180
+
+    def get_distance_to_closest_obstacle(self) :
+	return self.distance_to_closest_obstacle
+
+    def get_angle_to_closest_obstacle(self) :
+	return self.angle_to_closest_obstacle
+
+
+
+	
     
 class Sprite:
     def __init__(self, pos, vel, ang, ang_vel, image, info, sound = None):
@@ -216,6 +258,10 @@ class Sprite:
         else :
             return False
 
+    def set_angle_vel(self,ang_vel) :
+	self.angle_vel = ang_vel
+
+
 
 
 
@@ -257,7 +303,7 @@ def click(pos):
         started = True
 
 def draw(canvas):
-    global time, started,rock_group,lives , score , missile_group, explosion_group
+    global time, started,rock_group,lives , score , missile_group, explosion_group, previous_closest_obstacle
     time += 1
     wtime = (time / 4) % WIDTH
     center = debris_info.get_center()
@@ -279,11 +325,21 @@ def draw(canvas):
         canvas.draw_text("Lakshman Kumar's", [250, 220], 40, "White")
         
     else:   
+
         process_sprite_group(rock_group , canvas)
         process_sprite_group(missile_group , canvas)
         process_sprite_group(explosion_group , canvas)
+
+	closest_obstacle = my_ship.obstacle_detection(rock_group)
+
+	if closest_obstacle is not None :
+		closest_obstacle.set_angle_vel(1)   
+	
+	if previous_closest_obstacle is not None and previous_closest_obstacle is not closest_obstacle :
+		previous_closest_obstacle.set_angle_vel(0)
+
+	previous_closest_obstacle = closest_obstacle
         
-    
         if group_collide(rock_group,my_ship):
              lives -=1
         group_group_collide(rock_group,missile_group)
@@ -298,17 +354,23 @@ def draw(canvas):
   
     canvas.draw_text("Lives", [50, 50], 22, "White")
     canvas.draw_text("Score", [680, 50], 22, "White")
+    canvas.draw_text("Distance", [580, 50], 22, "White")
+    canvas.draw_text("Angle", [480, 50], 22, "White")
+    canvas.draw_text("Ship Angle", [380, 50], 22, "White")
     canvas.draw_text(str(lives), [50, 80], 22, "White")
-    canvas.draw_text(str(score), [680, 80], 22, "White")    
+    canvas.draw_text(str(score), [680, 80], 22, "White")   
+    canvas.draw_text(str(math.ceil(my_ship.get_distance_to_closest_obstacle())), [580, 80], 22, "White")  
+    canvas.draw_text(str(math.ceil(my_ship.get_angle())+math.ceil(my_ship.get_angle_to_closest_obstacle())), [480, 80], 22, "White")  
+    canvas.draw_text(str(math.ceil(my_ship.get_angle())), [380, 80], 22, "White")  
 
    
 def rock_spawner():
     global  rock_group, started , my_ship
-    rock_pos = [random.randrange(0, WIDTH), random.randrange(0, HEIGHT)]
+    rock_pos = [random.randrange(75, WIDTH-75), random.randrange(75, HEIGHT-75)]
     rock_vel = [0,0]#[random.random() * .6 - .3, random.random() * .6 - .3]
     rock_avel = 0#random.random() * .2 - .1
     a_rock = Sprite(rock_pos, rock_vel, 0, rock_avel, asteroid_image, asteroid_info)
-    if(len(rock_group) < 12 and started and (not a_rock.collide(my_ship)) ) :
+    if(len(rock_group) < 8 and started and (not a_rock.collide(my_ship)) ) :
         rock_group.add(a_rock)
         
 
@@ -395,6 +457,7 @@ if __name__ == '__main__':
 	missile_group = set()
 	explosion_group = set()
 
+	previous_closest_obstacle = None
 
 	frame.set_keyup_handler(keyup)
 	frame.set_keydown_handler(keydown)
