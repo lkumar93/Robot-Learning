@@ -101,9 +101,12 @@ class Ship:
        
     def update(self):
         
+	
         self.angle += self.angle_vel
         
-     
+        if(abs(math.degrees(self.angle)) > 360) :
+		 self.angle = 0
+	
         self.pos[0] = (self.pos[0] + self.vel[0]) % WIDTH
         self.pos[1] = (self.pos[1] + self.vel[1]) % HEIGHT
 
@@ -163,12 +166,8 @@ class Ship:
 
 	self.closest_obstacle = closest_obstacle
 	self.distance_to_closest_obstacle = distance_to_closest_obstacle	
-	angle =self.get_angle() + angle_to_closest_obstacle
-	
-	if angle < -180 :
-		angle = angle + 270
-
-	self.angle_to_closest_obstacle = angle 
+	angle_to_closest_obstacle = -((self.get_angle() - angle_to_closest_obstacle)%360 - 180)
+	self.angle_to_closest_obstacle = angle_to_closest_obstacle 
 
 	return self.closest_obstacle
 
@@ -179,7 +178,12 @@ class Ship:
         return self.radius
 
     def get_angle(self):
-	return abs(math.degrees(self.angle))%360-180
+	if math.degrees(self.angle) < -180 :
+		return math.degrees(self.angle) + 360.0
+	if math.degrees(self.angle) > 180 :
+		return math.degrees(self.angle) - 360.0
+	else :
+		return math.degrees(self.angle)
 
     def get_distance_to_closest_obstacle(self) :
 	return self.distance_to_closest_obstacle
@@ -355,22 +359,21 @@ def draw(canvas):
     canvas.draw_text("Lives", [50, 50], 22, "White")
     canvas.draw_text("Score", [680, 50], 22, "White")
     canvas.draw_text("Distance", [580, 50], 22, "White")
-    canvas.draw_text("Angle", [480, 50], 22, "White")
-    canvas.draw_text("Ship Angle", [380, 50], 22, "White")
+    canvas.draw_text("Heading", [480, 50], 22, "White")
     canvas.draw_text(str(lives), [50, 80], 22, "White")
     canvas.draw_text(str(score), [680, 80], 22, "White")   
     canvas.draw_text(str(math.ceil(my_ship.get_distance_to_closest_obstacle())), [580, 80], 22, "White")  
-    canvas.draw_text(str(math.ceil(my_ship.get_angle())+math.ceil(my_ship.get_angle_to_closest_obstacle())), [480, 80], 22, "White")  
-    canvas.draw_text(str(math.ceil(my_ship.get_angle())), [380, 80], 22, "White")  
+    canvas.draw_text(str(math.ceil(my_ship.get_angle_to_closest_obstacle())), [480, 80], 22, "White")  
+ 
 
    
 def rock_spawner():
     global  rock_group, started , my_ship
     rock_pos = [random.randrange(75, WIDTH-75), random.randrange(75, HEIGHT-75)]
-    rock_vel = [0,0]#[random.random() * .6 - .3, random.random() * .6 - .3]
-    rock_avel = 0#random.random() * .2 - .1
+    rock_vel = [0,0]
+    rock_avel = 0
     a_rock = Sprite(rock_pos, rock_vel, 0, rock_avel, asteroid_image, asteroid_info)
-    if(len(rock_group) < 8 and started and (not a_rock.collide(my_ship)) ) :
+    if(len(rock_group) < 10 and started and (not a_rock.collide(my_ship)) ) :
         rock_group.add(a_rock)
         
 
