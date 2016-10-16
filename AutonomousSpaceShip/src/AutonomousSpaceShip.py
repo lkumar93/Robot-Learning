@@ -99,8 +99,7 @@ class Ship:
             canvas.draw_image(self.image, self.image_center, self.image_size,
                               self.pos, self.image_size, self.angle)
        
-    def update(self):
-        
+    def update(self):        
 	
         self.angle += self.angle_vel
         
@@ -129,11 +128,20 @@ class Ship:
         else:
             ship_thrust_sound.pause()
        
-    def increment_angle_vel(self):
-        self.angle_vel += .1
+    def increment_angle_vel(self, magnitude = None):
+	if magnitude is None :
+        	self.angle_vel += .1
+	else :
+		self.angle_vel += magnitude
         
-    def decrement_angle_vel(self):
-        self.angle_vel -= .1
+    def decrement_angle_vel(self, magnitude = None):
+	if magnitude is None:
+        	self.angle_vel -= .1
+	else :
+		self.angle_vel -= magnitude
+
+    def stop_rotating(self):
+	self.angle_vel = 0
         
     def shoot(self):
         global missile_group
@@ -274,6 +282,37 @@ class Sprite:
 ##	FUNCTIONS
 ##
 ###########################################
+def auto_play():
+    pass 
+    global started, missile_group,rock_group
+    if started and len(rock_group) is not 0:
+	if my_ship.get_angle_to_closest_obstacle() < -2 :
+		my_ship.decrement_angle_vel(0.0005)
+		
+		if my_ship.get_distance_to_closest_obstacle() > 60 and my_ship.get_angle_to_closest_obstacle() > -3 : 
+			my_ship.set_thrust(True)
+		else :
+			my_ship.set_thrust(False)
+	
+	elif my_ship.get_angle_to_closest_obstacle() > 2 :
+		my_ship.increment_angle_vel(0.0005)
+
+		if my_ship.get_distance_to_closest_obstacle() > 60 and my_ship.get_angle_to_closest_obstacle() < 3 : 
+			my_ship.set_thrust(True)
+		else :
+			my_ship.set_thrust(False)
+	else :
+		my_ship.stop_rotating() 		
+		if my_ship.get_distance_to_closest_obstacle() > 60 :
+			my_ship.set_thrust(True)
+		else :
+			my_ship.set_thrust(False)
+			if len(missile_group) is 0 :
+				my_ship.shoot()
+    else :
+	my_ship.set_thrust(False)
+	my_ship.stop_rotating() 
+		
           
 def keydown(key):
     if key == simplegui.KEY_MAP['left']:
@@ -364,16 +403,16 @@ def draw(canvas):
     canvas.draw_text(str(score), [680, 80], 22, "White")   
     canvas.draw_text(str(math.ceil(my_ship.get_distance_to_closest_obstacle())), [580, 80], 22, "White")  
     canvas.draw_text(str(math.ceil(my_ship.get_angle_to_closest_obstacle())), [480, 80], 22, "White")  
- 
+    auto_play()
 
-   
+  
 def rock_spawner():
     global  rock_group, started , my_ship
     rock_pos = [random.randrange(75, WIDTH-75), random.randrange(75, HEIGHT-75)]
     rock_vel = [0,0]
     rock_avel = 0
     a_rock = Sprite(rock_pos, rock_vel, 0, rock_avel, asteroid_image, asteroid_info)
-    if(len(rock_group) < 10 and started and (not a_rock.collide(my_ship)) ) :
+    if(len(rock_group) < 4 and started and (not a_rock.collide(my_ship)) ) :
         rock_group.add(a_rock)
         
 
@@ -468,8 +507,9 @@ if __name__ == '__main__':
 	frame.set_draw_handler(draw)
 
 	timer = simplegui.create_timer(1000.0, rock_spawner)
-
+        #timer2 = simplegui.create_timer(16.67, auto_play)
 
 	timer.start()
+	#timer2.start()
 	frame.start()
 
