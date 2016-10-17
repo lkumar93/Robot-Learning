@@ -29,7 +29,6 @@ import SimpleGUICS2Pygame.simpleguics2pygame as simplegui
 import math
 import random
 
-
 ###########################################
 ##
 ##	VARIABLES
@@ -42,6 +41,11 @@ score = 0
 lives = 3
 time = 0
 started = False
+previous_closest_obstacle = None
+previous_angle = 0.0
+Manual = False
+Automatic = False
+max_number_of_rocks = 4
 
 ###########################################
 ##
@@ -49,6 +53,7 @@ started = False
 ##
 ###########################################
 
+#Create a class for holding information of images
 class ImageInfo:
     def __init__(self, center, size, radius = 0, lifespan = None, animated = False):
         self.center = center
@@ -75,6 +80,8 @@ class ImageInfo:
     def get_animated(self):
         return self.animated
 
+
+#Create a class for the Space Ship
 class Ship:
 
     def __init__(self, pos, vel, angle, image, info):
@@ -202,7 +209,7 @@ class Ship:
 
 
 	
-    
+#Create a class to represent objects other the space ship in the environment    
 class Sprite:
     def __init__(self, pos, vel, ang, ang_vel, image, info, sound = None):
         self.pos = [pos[0],pos[1]]
@@ -221,9 +228,7 @@ class Sprite:
             sound.play()
    
     def draw(self, canvas):
-        
-        
-        
+              
         if self.animated :
        
             canvas.draw_image(explosion_image, [ explosion_info.get_center()[0] + self.age * explosion_info.get_size()[0], explosion_info.get_center()[1]  ], explosion_info.get_size(),
@@ -234,7 +239,6 @@ class Sprite:
         
             canvas.draw_image(self.image, self.image_center, self.image_size,
                           self.pos, self.image_size, self.angle)
-        #print "spawning"
 
     def update(self):
         # update angle
@@ -282,71 +286,104 @@ class Sprite:
 ##	FUNCTIONS
 ##
 ###########################################
-def auto_play():
-    pass 
-    global started, missile_group,rock_group
-    if started and len(rock_group) is not 0:
-	if my_ship.get_angle_to_closest_obstacle() < -2 :
-		my_ship.decrement_angle_vel(0.0005)
-		
-		if my_ship.get_distance_to_closest_obstacle() > 60 and my_ship.get_angle_to_closest_obstacle() > -3 : 
-			my_ship.set_thrust(True)
-		else :
-			my_ship.set_thrust(False)
-	
-	elif my_ship.get_angle_to_closest_obstacle() > 2 :
-		my_ship.increment_angle_vel(0.0005)
 
-		if my_ship.get_distance_to_closest_obstacle() > 60 and my_ship.get_angle_to_closest_obstacle() < 3 : 
+#Combinational Logic For Playing The Game Automatically
+def auto_play():
+    global started, missile_group,rock_group, previous_angle
+
+    #Define PD Controller Constants
+    kp = 0.0000115
+    kd = 0.00005
+
+    #If there are any rocks in the environment execute the logic or else freeze the ship
+    if len(rock_group) is not 0:
+
+	#If the nearest obstacle is in shootable angle, else stop rotation of ship
+	if abs(my_ship.get_angle_to_closest_obstacle()) > 2 :
+		
+		#Implement Proportional-Derivative (PD) Controller
+		Error = my_ship.get_angle_to_closest_obstacle()
+		dError = previous_angle - my_ship.get_angle_to_closest_obstacle()
+		magnitude = kp*Error + kd*dError
+		my_ship.increment_angle_vel(magnitude)
+		previous_angle = my_ship.get_angle_to_closest_obstacle()
+	
+		#To prevent jerky thrusting define a threshold outside of the shootable angle to thrust forward 
+		if my_ship.get_distance_to_closest_obstacle() > 60 and abs(my_ship.get_angle_to_closest_obstacle()) < 3 : 
 			my_ship.set_thrust(True)
 		else :
 			my_ship.set_thrust(False)
 	else :
+		previous_angle = 0.0
 		my_ship.stop_rotating() 		
-		if my_ship.get_distance_to_closest_obstacle() > 60 :
-			my_ship.set_thrust(True)
-		else :
+
+		#If nearest obstacle is in shootable range then fire missile or else thrust forward
+		if my_ship.get_distance_to_closest_obstacle() < 60 :
 			my_ship.set_thrust(False)
 			if len(missile_group) is 0 :
 				my_ship.shoot()
+			
+		else :
+			my_ship.set_thrust(True)
+	
     else :
 	my_ship.set_thrust(False)
 	my_ship.stop_rotating() 
 		
-          
+#Key pressed logic          
 def keydown(key):
-    if key == simplegui.KEY_MAP['left']:
-        my_ship.decrement_angle_vel()
-    elif key == simplegui.KEY_MAP['right']:
-        my_ship.increment_angle_vel()
-    elif key == simplegui.KEY_MAP['up']:
-        my_ship.set_thrust(True)
-    elif key == simplegui.KEY_MAP['space']:
-        my_ship.shoot()
-        
+    global Manual
+    if Manual:
+	    if key == simplegui.KEY_MAP['left']:
+		my_ship.decrement_angle_vel()
+	    elif key == simplegui.KEY_MAP['right']:
+		my_ship.increment_angle_vel()
+	    elif key == simplegui.KEY_MAP['up']:
+		my_ship.set_thrust(True)
+	    elif key == simplegui.KEY_MAP['space']:
+		my_ship.shoot()
+
+#key released logic        
 def keyup(key):
-    if key == simplegui.KEY_MAP['left']:
-        my_ship.increment_angle_vel()
-    elif key == simplegui.KEY_MAP['right']:
-        my_ship.decrement_angle_vel()
-    elif key == simplegui.KEY_MAP['up']:
-        my_ship.set_thrust(False)
+    global Manual
+    if Manual:
+	    if key == simplegui.KEY_MAP['left']:
+		my_ship.increment_angle_vel()
+	    elif key == simplegui.KEY_MAP['right']:
+		my_ship.decrement_angle_vel()
+	    elif key == simplegui.KEY_MAP['up']:
+		my_ship.set_thrust(False)
         
 
+#When mouse is clicked on screen ,this function is called
 def click(pos):
-    global started , lives , score , explosion_group
-    center = [WIDTH / 2, HEIGHT / 2]
-    size = splash_info.get_size()
+    global started , lives , score , explosion_group, Manual, Automatic
     lives = 3 
     score = 0
     explosion_group = set()
-    inwidth = (center[0] - size[0] / 2) < pos[0] < (center[0] + size[0] / 2)
-    inheight = (center[1] - size[1] / 2) < pos[1] < (center[1] + size[1] / 2)
-    if (not started) and inwidth and inheight:
-        started = True
 
+    size = [100, 100]
+
+    inmanualwidth = (200 ) < pos[0] < (200 + size[0] )
+    inmanualheight = (500 - size[1] ) < pos[1] < (500)
+
+    inautomaticwidth = (500 ) < pos[0] < (500 + size[0] )
+    inautomaticheight = (500 - size[1]) < pos[1] < (500)
+
+    if (not started) :
+	#Check if Manual or Automatic Option was selected
+	if inmanualwidth and inmanualheight :
+        	started = True
+		Manual = True
+		Automatic = False
+	if inautomaticwidth and inautomaticheight:
+		started = True
+		Automatic = True
+		Manual = False
+
+#This is called approximately 60 times a second, all the updates to the frame happens here
 def draw(canvas):
-    global time, started,rock_group,lives , score , missile_group, explosion_group, previous_closest_obstacle
+    global time, started,rock_group,lives , score , missile_group, explosion_group, previous_closest_obstacle, automatic
     time += 1
     wtime = (time / 4) % WIDTH
     center = debris_info.get_center()
@@ -361,11 +398,15 @@ def draw(canvas):
     
     
     if not started:
-        
-        canvas.draw_image(splash_image, splash_info.get_center(), 
-                          splash_info.get_size(), [WIDTH / 2, HEIGHT / 2], 
-                          splash_info.get_size())
-        canvas.draw_text("Lakshman Kumar's", [250, 220], 40, "White")
+
+        canvas.draw_image(splashoverlay_image, splashoverlay_info.get_center(), 
+                          splashoverlay_info.get_size(), [WIDTH / 2, HEIGHT / 2], 
+                          splashoverlay_info.get_size())
+
+        canvas.draw_text("Lakshman Kumar's", [260, 150], 40, "Green")
+	canvas.draw_text("Manual", [200, 500], 40, "Green")
+	canvas.draw_text("Automatic", [500, 500], 40, "Green")
+	canvas.draw_text("Click any option", [350, 460], 20, "Green")
         
     else:   
 
@@ -394,28 +435,33 @@ def draw(canvas):
             rock_group = set()
             soundtrack.rewind()
 
+	if Automatic: 
+		auto_play()
   
-    canvas.draw_text("Lives", [50, 50], 22, "White")
-    canvas.draw_text("Score", [680, 50], 22, "White")
-    canvas.draw_text("Distance", [580, 50], 22, "White")
-    canvas.draw_text("Heading", [480, 50], 22, "White")
-    canvas.draw_text(str(lives), [50, 80], 22, "White")
-    canvas.draw_text(str(score), [680, 80], 22, "White")   
-    canvas.draw_text(str(math.ceil(my_ship.get_distance_to_closest_obstacle())), [580, 80], 22, "White")  
-    canvas.draw_text(str(math.ceil(my_ship.get_angle_to_closest_obstacle())), [480, 80], 22, "White")  
-    auto_play()
+    if started :
+	    canvas.draw_text("Lives", [50, 50], 22, "White")
+	    canvas.draw_text("Score", [680, 50], 22, "White")
+	    canvas.draw_text("Distance", [580, 50], 22, "White")
+	    canvas.draw_text("Angle", [480, 50], 22, "White")
+	    canvas.draw_text("Nearest Obstacle", [490, 25], 22, "White")
+	    canvas.draw_text(str(lives), [50, 80], 22, "White")
+	    canvas.draw_text(str(score), [680, 80], 22, "White")   
+	    canvas.draw_text(str(math.ceil(my_ship.get_distance_to_closest_obstacle())), [580, 80], 22, "White")  
+	    canvas.draw_text(str(math.ceil(my_ship.get_angle_to_closest_obstacle())), [480, 80], 22, "White")  
+	    
 
-  
+#Spawn rocks if its less than the required threshold  
 def rock_spawner():
-    global  rock_group, started , my_ship
+    global  rock_group, started , my_ship, max_number_of_rocks
     rock_pos = [random.randrange(75, WIDTH-75), random.randrange(75, HEIGHT-75)]
     rock_vel = [0,0]
     rock_avel = 0
     a_rock = Sprite(rock_pos, rock_vel, 0, rock_avel, asteroid_image, asteroid_info)
-    if(len(rock_group) < 4 and started and (not a_rock.collide(my_ship)) ) :
+    if(len(rock_group) < max_number_of_rocks and started and (not a_rock.collide(my_ship)) ) :
         rock_group.add(a_rock)
         
 
+#Draw sprite objects on the frame
 def process_sprite_group(group, canvas):    
     
     for g in list(group) :
@@ -423,7 +469,7 @@ def process_sprite_group(group, canvas):
         if g.update() :
             group.remove(g)
         
-
+#Check if a group (rocks,missiles) has collided with any other object( a space ship, a missile etc)
 def group_collide(group,other_object) :
     
     global explosion_group
@@ -436,6 +482,7 @@ def group_collide(group,other_object) :
             return True
     return False
 
+#Check if two groups have collided (Rocks and Missiles)
 def group_group_collide(group1 , group2):
     
     global score;
@@ -447,6 +494,7 @@ def group_group_collide(group1 , group2):
 def angle_to_vector(ang):
     return [math.cos(ang), math.sin(ang)]
 
+#Euclidean Distance
 def dist(p, q):
     return math.sqrt((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2)
 
@@ -457,34 +505,31 @@ def dist(p, q):
 ###########################################	
 
 if __name__ == '__main__':
+
+	#Create all the required image objects
     
 	debris_info = ImageInfo([320, 240], [640, 480])
 	debris_image = simplegui.load_image("http://commondatastorage.googleapis.com/codeskulptor-assets/lathrop/debris2_blue.png")
 
-
 	nebula_info = ImageInfo([400, 300], [800, 600])
 	nebula_image = simplegui.load_image("http://commondatastorage.googleapis.com/codeskulptor-assets/lathrop/nebula_blue.f2014.png")
 
-
-	splash_info = ImageInfo([200, 150], [400, 300])
-	splash_image = simplegui.load_image("http://commondatastorage.googleapis.com/codeskulptor-assets/lathrop/splash.png")
-
+	splashoverlay_info = ImageInfo([WIDTH/2, HEIGHT/2], [WIDTH,HEIGHT])
+	splashoverlay_image = simplegui.load_image("http://sfstory.free.fr/images/Affiches/starwars800x600.jpg")
 
 	ship_info = ImageInfo([45, 45], [90, 90], 35)
 	ship_image = simplegui.load_image("http://commondatastorage.googleapis.com/codeskulptor-assets/lathrop/double_ship.png")
 
-
 	missile_info = ImageInfo([5,5], [10, 10], 3, 50)
 	missile_image = simplegui.load_image("http://commondatastorage.googleapis.com/codeskulptor-assets/lathrop/shot2.png")
-
 
 	asteroid_info = ImageInfo([45, 45], [90, 90], 40)
 	asteroid_image = simplegui.load_image("http://commondatastorage.googleapis.com/codeskulptor-assets/lathrop/asteroid_blue.png")
 
-
 	explosion_info = ImageInfo([64, 64], [128, 128], 17, 24, True)
 	explosion_image = simplegui.load_image("http://commondatastorage.googleapis.com/codeskulptor-assets/lathrop/explosion_alpha.png")
 
+	#Create game sounds
 
 	soundtrack = simplegui.load_sound("http://commondatastorage.googleapis.com/codeskulptor-assets/sounddogs/soundtrack.mp3")
 	missile_sound = simplegui.load_sound("http://commondatastorage.googleapis.com/codeskulptor-assets/sounddogs/missile.mp3")
@@ -492,24 +537,29 @@ if __name__ == '__main__':
 	ship_thrust_sound = simplegui.load_sound("http://commondatastorage.googleapis.com/codeskulptor-assets/sounddogs/thrust.mp3")
 	explosion_sound = simplegui.load_sound("http://commondatastorage.googleapis.com/codeskulptor-assets/sounddogs/explosion.mp3")
 
+	#Create the game screen
 	frame = simplegui.create_frame("Asteroids", WIDTH, HEIGHT)
 
+	#Create the ship
 	my_ship = Ship([WIDTH / 2, HEIGHT / 2], [0, 0], 0, ship_image, ship_info)
+
+	#Initialize sprites
 	rock_group = set()
 	missile_group = set()
 	explosion_group = set()
 
-	previous_closest_obstacle = None
-
+	#Set appropriate helper functions for frame object
 	frame.set_keyup_handler(keyup)
 	frame.set_keydown_handler(keydown)
 	frame.set_mouseclick_handler(click)
 	frame.set_draw_handler(draw)
 
-	timer = simplegui.create_timer(1000.0, rock_spawner)
-        #timer2 = simplegui.create_timer(16.67, auto_play)
+	#Create a timer to run rock_spawner every 10 ms
+	timer = simplegui.create_timer(10.0, rock_spawner)
 
+	#Start the timer
 	timer.start()
-	#timer2.start()
+
+	#Start the game screen
 	frame.start()
 
