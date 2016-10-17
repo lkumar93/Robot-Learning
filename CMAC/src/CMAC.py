@@ -66,7 +66,7 @@ maximum_output_value = 1.0
 class CMAC:
 
     #Initialize The Object With User Specified Values And Function
-    def __init__(self,  generalization_factor, dataset, CMAC_type = 'CONTINUOUS', minimum_output_value = minimum_output_value, maximum_output_value = maximum_output_value, local_convergence_threshold = 0.000, learning_rate = 0.15, global_convergence_threshold = 0.000, max_global_convergence_iterations = 20):
+    def __init__(self,  generalization_factor, dataset, CMAC_type = 'CONTINUOUS', minimum_output_value = minimum_output_value, maximum_output_value = maximum_output_value, local_convergence_threshold = 0.01, learning_rate = 0.15, global_convergence_threshold = 0.01, max_global_convergence_iterations = 20):
 
         self.generalization_factor = generalization_factor
 

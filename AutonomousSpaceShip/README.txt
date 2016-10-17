@@ -1,5 +1,5 @@
 
- THIS FOLDER CONTAINS THE IMPLEMENTATION OF THE CLASSIC SPACE SHIP GAME IN 2D
+ THIS FOLDER CONTAINS THE IMPLEMENTATION OF A SELF DRIVING SPACE SHIP
 
  AUTHOR : LAKSHMAN KUMAR
  AFFILIATION : UNIVERSITY OF MARYLAND, MARYLAND ROBOTICS CENTER
@@ -14,7 +14,7 @@
 	3) sudo apt-get install python-matplotlib
 
  - Run the game as follows inside the parent directory of the repository
-	python src/SpaceShipGame_2D.py
+	python src/AutonomousSpaceShip.py
 
 
 
