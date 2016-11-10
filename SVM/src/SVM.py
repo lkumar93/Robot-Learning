@@ -136,7 +136,7 @@ def Classify(database,label_x,label_y,classifier_type = 'linear', number_of_feat
 	#Reshape Z according to the first element in xx_set	
 	Z = Z.reshape(xx_set[0].shape)
 
-	title = str(classifier_type)+" SVM , Errors = " + str(error)
+	title = str(classifier_type)+" SVM , Error Percentage = " + str((error/150.0)*100)
 	
 	#Plot the data
 	PlotClassifiedData(xx_set,X,Y,Z,title,label_x,label_y)
