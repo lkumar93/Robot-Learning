@@ -276,6 +276,7 @@ class Board(object):
 
         self.surface.blit(text, rect)
 
+    #Store number of episodes completed
     def increment_epochs(self) :
 	self.epochs = self.epochs + 1
 

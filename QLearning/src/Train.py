@@ -1,6 +1,5 @@
 #
-# THIS IS AN IMPLEMENTATION OF Q LEARNING ALGORITHM ON
-# TIC TAC TOE
+# THIS IS AN IMPLEMENTATION OF Q LEARNING ALGORITHM TO PLAY TIC TAC TOE
 #
 # COPYRIGHT BELONGS TO THE AUTHOR OF THIS CODE
 #
@@ -16,8 +15,7 @@
 # BY EXERCISING ANY RIGHTS TO THE WORK PROVIDED HERE, YOU ACCEPT AND AGREE TO
 # BE BOUND BY THE TERMS OF THIS LICENSE. THE LICENSOR GRANTS YOU THE RIGHTS
 # CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND
-# CONDITIONS.
-#
+# CONDITIONS.#
 
 ###########################################
 ##
@@ -25,7 +23,7 @@
 ##
 ###########################################
 
-import pygame, sys
+import pygame, sys, getopt
 import matplotlib.pyplot as plotter
 import time
 
@@ -33,20 +31,24 @@ from pygame.locals import QUIT, MOUSEBUTTONUP
 from QLearning import QLearner
 from TicTacToe import Board
 
-
 ###########################################
 ##
 ##	VARIABLES
 ##
 ###########################################
 
-epochs = 1000
+epochs = 30000
 wins = 0.0
 losses = 0.0
 draws = 0.0
-winning_percentages_50_epoch = []
-losing_percentages_50_epoch = []
-drawing_percentages_50_epoch = []
+
+winning_percentages  = []
+losing_percentages  = []
+drawing_percentages  = []
+
+func_approx_flag = False
+exp_replay_flag = None
+random_opponent_flag = False
 
 ###########################################
 ##
@@ -64,10 +66,65 @@ if __name__ == '__main__':
 
 	#Initialize the game
 	TicTacToeBoard = Board(grid_size=3, box_size=100, border=50, line_width=10)
+
+	#Parse command line arguments to check if the user wants to enable function approximation, experience replay or random opponent
+
+	argv = sys.argv[1:]
+
+   	try:
+      		opts, args = getopt.getopt(argv,"f:r:e:",["func_approx=","rand_opp=","exp_replay="])
+
+   	except getopt.GetoptError:	
+      		print 'Usage: python Train.py -f <bool> -r <bool> -e <bool>'
+      		sys.exit(2)
+   	
+	for opt, arg in opts:
+
+     		if opt in ("-f", "--func_approx"):
+
+			if arg == 'True' :
+				func_approx_flag = True
+
+			elif arg == 'False' :
+				func_approx_flag = False
+
+			else :
+				print 'Usage: python Train.py -f <bool> -r <bool> -e <bool>'
+			
+				sys.exit(2)
+
+		elif opt in ("-e", "--exp_replay") :
+
+			if arg == 'True' :
+				exp_replay_flag = True
+
+			elif arg == 'False' :
+				exp_replay_flag = False
+
+			else :
+				print 'Usage: python Train.py -f <bool> -r <bool> -e <bool>'
+
+				sys.exit(2)
+
+		elif opt in ("-r", "--rand_opp") :
+
+			if arg == 'True' :
+				random_opponent_flag = True
+
+			elif arg == 'False' :
+				random_opponent_flag = False
+
+			else :
+				print 'Usage: python Train.py -f <bool> -r <bool> -e <bool>'
+
+				sys.exit(2)
+			
+	#Initialize Q Learning Players
+	qlearner1 = QLearner(TicTacToeBoard, 1 , function_approximation = func_approx_flag, epsilon = 0.9, replay = exp_replay_flag)
+
 	
-	#Initialize Q Learning Player
-	qlearner1 = QLearner(TicTacToeBoard, 1)
-	qlearner2 = QLearner(TicTacToeBoard, 2)
+	qlearner2 = QLearner(TicTacToeBoard, 2 , function_approximation = func_approx_flag, epsilon = 0.9, replay = exp_replay_flag )
+
 
 	#Train the qlearner upto the number of epochs required
 	for i in range(1,epochs) :
@@ -75,8 +132,12 @@ if __name__ == '__main__':
 		#Qlearner1 plays X
 		qlearner1.play()
 
-		#Qlearner2 plays O
-		qlearner2.play()
+		if random_opponent_flag == True :
+			TicTacToeBoard.random_player()
+
+		else :
+			#Qlearner2 plays O
+			qlearner2.play()
 
 		#Update policy of Qlearner 1
 		qlearner1.update_policy()
@@ -87,18 +148,23 @@ if __name__ == '__main__':
 			#Train Qlearner1
 			qlearner1.play()
 
-			#Update policy of Qlearner2
-			qlearner2.update_policy()
+			if random_opponent_flag == True :
 
-			#Update Display
-			pygame.display.update()
+				TicTacToeBoard.random_player()
 
-			#Train Qlearner2
-			if TicTacToeBoard.check_game_over()  is False :
-				qlearner2.play()
+			else :
+				#Update policy of Qlearner2
+				qlearner2.update_policy()
+
+				#Train Qlearner2
+				if TicTacToeBoard.check_game_over()  is False :
+					qlearner2.play()
 			
 			#Train Qlearner
 			qlearner1.update_policy()
+
+			#Update Display
+			pygame.display.update()
 
 			#Check if user wants to quit							
 			for event in pygame.event.get():
@@ -116,8 +182,12 @@ if __name__ == '__main__':
 			#Update clock frequency
 			clock.tick(100)	
 
-		#Update policy of qlearner2
-		qlearner2.update_policy()
+		if random_opponent_flag == False :
+			#Update policy of qlearner2
+			qlearner2.update_policy()
+			qlearner2.decrement_epsilon(epochs)
+
+		qlearner1.decrement_epsilon(epochs)		
 
 		#Keep track of number of total wins, losses and draws
 
@@ -144,9 +214,9 @@ if __name__ == '__main__':
 
 		#Store the percentage of winning,losing and drawing every 50 epochs
 		if i%50 == 0 and i > 100:
-			winning_percentages_50_epoch.append(percentage_wins)
-			losing_percentages_50_epoch.append(percentage_losses)
-			drawing_percentages_50_epoch.append(percentage_draws)
+			winning_percentages .append(percentage_wins)
+			losing_percentages .append(percentage_losses)
+			drawing_percentages .append(percentage_draws)
 
 		#Keep track of number of episodes completed
 		TicTacToeBoard.increment_epochs()
@@ -156,22 +226,27 @@ if __name__ == '__main__':
 	
 		
 	#Store the number of epochs ( x50 ) passed	
-	range_of_values = range(2,len(winning_percentages_50_epoch)+2)
+	range_of_values = range(2,len(winning_percentages )+2)
 
 	#Plot the performance 
 
 	plotter.figure()		
 
-	plotter.plot(range_of_values,winning_percentages_50_epoch,'g',label='Wins' )
-	plotter.plot(range_of_values,losing_percentages_50_epoch,'r',label='Losses' )
-	plotter.plot(range_of_values,drawing_percentages_50_epoch,'b',label='Draws' )
+	plotter.plot(range_of_values,winning_percentages ,'g',label='Wins' )
+	plotter.plot(range_of_values,losing_percentages ,'r',label='Losses' )
+	plotter.plot(range_of_values,drawing_percentages ,'b',label='Draws' )
 
 	plotter.xlabel('X50 Number of Episodes Completed')
 	plotter.ylabel('Cumulative Percentage')
 
 	plotter.legend(loc='upper right', shadow=True)
 
-	TitleText = " PERFORMANCE OF Q LEARNING TIC TAC TOE WITH LOOK UP TABLE \n \n" + " LEARNING RATE =  " +str(qlearner1.learning_rate) + " , DISCOUNT FACTOR =  " + str(qlearner1.discount_factor) + " , EPSILON = " + str(qlearner1.epsilon)
+	if qlearner1.function_approximation :
+		TitleText = " PERFORMANCE OF Q LEARNING TIC TAC TOE WITH FUNCTION APPROXIMATION \n \n" + " DISCOUNT FACTOR =  " + str(qlearner1.discount_factor) 
+
+	else:
+		TitleText = " PERFORMANCE OF Q LEARNING TIC TAC TOE WITH LOOK UP TABLE \n \n" + " LEARNING RATE =  " +str(qlearner1.learning_rate) + " , DISCOUNT FACTOR =  " + str(qlearner1.discount_factor) 
+
 	plotter.title(TitleText)
 
 	plotter.show()

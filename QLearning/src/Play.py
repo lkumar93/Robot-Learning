@@ -1,6 +1,5 @@
 #
-# THIS IS AN IMPLEMENTATION OF Q LEARNING ALGORITHM ON
-# TIC TAC TOE
+# THIS IS AN IMPLEMENTATION OF Q LEARNING ALGORITHM TO PLAY TIC TAC TOE
 #
 # COPYRIGHT BELONGS TO THE AUTHOR OF THIS CODE
 #
@@ -26,9 +25,10 @@
 ###########################################
 
 
-import pygame, sys
+import pygame, sys, getopt
 from pygame.locals import QUIT, MOUSEBUTTONUP
 import time
+
 from QLearning import QLearner
 from TicTacToe import Board
 
@@ -41,6 +41,9 @@ from TicTacToe import Board
 wins = 0.0
 losses = 0.0
 draws = 0.0
+
+func_approx_flag = False
+exp_replay_flag = None
 
 ###########################################
 ##
@@ -57,11 +60,52 @@ if __name__ == '__main__':
 	#Initialize pygame clock
 	clock = pygame.time.Clock()
 
+	#Parse command line arguments to check if the user wants to enable function approximation or experience replay
+
+	argv = sys.argv[1:]
+
+   	try:
+      		opts, args = getopt.getopt(argv,"f:e:r:",["func_approx=","exp_replay="])
+
+   	except getopt.GetoptError:
+      		print 'Usage: python Play.py -f <bool> -e <bool>'
+      		sys.exit(2)
+   	
+	for opt, arg in opts:
+
+     		if opt in ("-f", "--func_approx"):
+
+			if arg == 'True' :
+				func_approx_flag = True
+
+			elif arg == 'False' :
+				func_approx_flag = False
+
+			else :
+				print 'Usage: python Play.py -f <bool> -e <bool>'
+
+				sys.exit(2)
+
+		elif opt in ("-e", "--exp_replay") :
+
+			if arg == 'True' :
+				exp_replay_flag = True
+
+			elif arg == 'False' :
+				exp_replay_flag = False
+
+			else :
+				print 'Usage: python Play.py -f <bool>  -e <bool>'
+
+				sys.exit(2)
+		
+
 	#Initialize the game
 	TicTacToeBoard = Board(grid_size=3, box_size=100, border=50, line_width=10)
 
 	#Initialize Q Learning Player
-	qlearner = QLearner(TicTacToeBoard, q_id = 1, epsilon = 0.0)
+	qlearner = QLearner(TicTacToeBoard, q_id = 1, function_approximation = func_approx_flag,epsilon = 0.0,replay = exp_replay_flag)
+			
 
 	#Loop Forever
 	while True:
