@@ -27,17 +27,20 @@
 	3) sudo apt-get install python-pip
 	4) pip install h5py
 	5) sudo apt-get install libhdf5-serial-dev
-	6) sudo apt-get install python-numpy python-scipy python-dev python-pip python-nose g++ libopenblas-dev git
+	6) sudo apt-get install python-numpy python-scipy python-dev python-pip python-nose
+	   g++ libopenblas-dev git
 	7) sudo pip install Theano
 	8) sudo pip install keras
 
  - Once you install keras, change the backend to theano as shown in the link below
 	https://keras.io/backend/
 
- - The folder contains 4 source code files, TicTacToe.py contains the implementation of the TicTacToe game , QLearning.py 
-   contains the implementation of the Q Learning Algorithm, Train.py is used to train the Qlearner for 30,000 episodes by 
-   self play and Play.py can be used by the user to play with the Qlearner. The learnt policies by the qlearner have been
-   saved as either a JSON file or a HDF5 file based on whether a look up table is used or function approximation is used
+ - The folder contains 4 source code files, TicTacToe.py contains the implementation of the 
+   TicTacToe game , QLearning.py    contains the implementation of the Q Learning Algorithm,
+   Train.py is used to train the Qlearner for 30,000 episodes by self play and Play.py can be
+   used by the user to play with the Qlearner. The learnt policies by the qlearner have been
+   saved as either a JSON file or a HDF5 file based on whether a look up table is used or 
+   function approximation is used
 
  - Usage :
 
@@ -45,9 +48,11 @@
 
 		python Train.py -f <bool> -r <bool> -e <bool>
 
-		By default, the qlearner trains itself by playing against another qlearner using Look up table
+		By default, the qlearner trains itself by playing against another qlearner 
+		using Look up table
 
-		To enable function approximation, experience replay and a random opponent , use the following command
+		To enable function approximation, experience replay and a random opponent ,
+		use the following command
 
 		python Train.py -f True -r True -r True
 
@@ -57,7 +62,8 @@
 
 		By default, the qlearner plays against the user using Look Up Table
 
-		To enable function approximation and experience replay , use the following command
+		To enable function approximation and experience replay , 
+		use the following command
 
 		python Play.py -f True -e True
 
