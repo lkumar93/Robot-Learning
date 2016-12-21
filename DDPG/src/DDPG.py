@@ -1,6 +1,6 @@
 #
 # THIS IS AN IMPLEMENTATION OF DEEP DETERMINISTIC GRADIENT POLICY ALGORITHM
-# TO CONTROL A QUADCOPTER
+# TO CONTROL THE POSITON OF QUADCOPTER
 #
 # COPYRIGHT BELONGS TO THE AUTHOR OF THIS CODE
 #
@@ -254,8 +254,8 @@ class Critic :
 #Create a framework for finding the optimal control policy using Deep Deterministic Policy Gradient Algorithm
 class DDPG:
 
-    #Initialize the QLearner
-    def __init__(self,  drone = 'ardrone' , param = 'Thrust', controller = 'AI', setpoint = 0.4, state_dim = 2, action_dim = 1,learning_rate = 0.01, learning_rate_actor = 0.0001, learning_rate_critic = 0.000, discount_factor = 0.95, epsilon = 1.0, buffer_size = 100000, mini_batch_size = 40, tau = 0.001, hidden_layer_neurons_actor=[100,200], hidden_layer_neurons_critic=[100,200]) :
+    #Initialize DDPG
+    def __init__(self,  drone = 'ardrone' , param = 'Thrust', controller = 'AI', setpoint = 0.4, state_dim = 2, action_dim = 1,learning_rate = 0.01, learning_rate_actor = 0.0001, learning_rate_critic = 0.000, discount_factor = 0.05, epsilon = 1.0, buffer_size = 100000, mini_batch_size = 40, tau = 0.001, hidden_layer_neurons_actor=[100,200], hidden_layer_neurons_critic=[100,200]) :
 
 	self.drone = drone
 	self.learning_rate_actor = learning_rate_actor
@@ -513,22 +513,7 @@ class DDPG:
     #Reward Function
     def get_reward(self,state) :
 
-	#reward = - (3*abs(state[0])) - (10*abs(state[1]))
-
 	reward = math.exp(-abs(state[0])/(0.1*self.setpoint*3))*math.exp(-abs(state[1])/(0.1*self.setpoint*3))
-
-	#print "reward = " + str(reward)
-
-	#reward = 0.0
-
-#	if abs(state[0]) >= abs(self.initial_state[0]) :
-#		reward = -1.0
-
-#	elif abs(state[0]) <= 0.05 and abs(state[1]) <=0.001 :
-#		reward = 1.0
-
-#	if abs(state[0]) <= 0.05 and abs(state[1]) <=0.001 :
-#		reward = 1.0
 
 	return reward
 

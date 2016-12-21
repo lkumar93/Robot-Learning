@@ -47,9 +47,6 @@ STEPS = FPS*6
 STEP_RANGE = range(0,STEPS)
 EPOCH_RANGE = range(0,EPOCHS)
 
-FUNC_APPROX_FLAG = True
-EXP_REPLAY_FLAG = None
-
 TRAIN_FLAG = True
 
 ###########################################
