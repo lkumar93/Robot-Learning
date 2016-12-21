@@ -65,9 +65,9 @@ class QLearner:
 	self.replay_count = 0
 
 	if function_approximation :
-		self.file_name = 'policy_q'+ str(self.q_id) +'_fa.h5'
+		self.file_name = '../policy/policy_q'+ str(self.q_id) +'_fa.h5'
 	else :
-		self.file_name = 'policy_q'+ str(self.q_id) +'.json'
+		self.file_name = '../policy/policy_q'+ str(self.q_id) +'.json'
 
 	self.load_policy()
 	

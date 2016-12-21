@@ -37,7 +37,7 @@ from TicTacToe import Board
 ##
 ###########################################
 
-epochs = 30000
+epochs = 5000
 wins = 0.0
 losses = 0.0
 draws = 0.0
@@ -118,7 +118,14 @@ if __name__ == '__main__':
 				print 'Usage: python Train.py -f <bool> -r <bool> -e <bool>'
 
 				sys.exit(2)
-			
+
+
+        if random_opponent_flag is True :
+		FigureName = 'QLearnerVsRandomPlayer'
+
+	else :
+		FigureName = 'QLearnerVsQLearner'
+
 	#Initialize Q Learning Players
 	qlearner1 = QLearner(TicTacToeBoard, 1 , function_approximation = func_approx_flag, epsilon = 0.9, replay = exp_replay_flag)
 
@@ -243,11 +250,14 @@ if __name__ == '__main__':
 
 	if qlearner1.function_approximation :
 		TitleText = " PERFORMANCE OF Q LEARNING TIC TAC TOE WITH FUNCTION APPROXIMATION \n \n" + " DISCOUNT FACTOR =  " + str(qlearner1.discount_factor) 
+		FigureName += '_fa'
 
 	else:
 		TitleText = " PERFORMANCE OF Q LEARNING TIC TAC TOE WITH LOOK UP TABLE \n \n" + " LEARNING RATE =  " +str(qlearner1.learning_rate) + " , DISCOUNT FACTOR =  " + str(qlearner1.discount_factor) 
+		FigureName += '_lt'
 
 	plotter.title(TitleText)
+	plotter.savefig('../figures/'+FigureName+'.png')
 
 	plotter.show()
 	
