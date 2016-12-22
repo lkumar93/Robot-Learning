@@ -52,7 +52,7 @@ from nav_msgs.msg import Odometry
 class DQN:
 
     #Initialize the QLearner
-    def __init__(self, drone = 'ARDrone' , param = 'Thrust', controller = 'AI', setpoint = 0.4, action_limits = [-0.02, 0.02], action_step_size = 0.01 , function_approximation = True, learning_rate = 0.05, discount_factor = 0.05, epsilon = 0.5, buffer_size = 10000, mini_batch_size = 40, replay = None, tau = 0.01) :
+    def __init__(self, drone = 'ardrone' , param = 'Thrust', controller = 'AI', setpoint = 0.4, action_limits = [-0.02, 0.02], action_step_size = 0.01 , function_approximation = True, learning_rate = 0.05, discount_factor = 0.05, epsilon = 0.5, buffer_size = 100000, mini_batch_size = 40, replay = None, tau = 0.01) :
 
 	self.drone = drone
 	self.param = param
@@ -83,8 +83,6 @@ class DQN:
 	self.cmd_publisher = rospy.Publisher(cmd_topic, RollPitchYawrateThrust, queue_size = 1)
 	self.state_publisher = rospy.Publisher('/gazebo/set_model_state', ModelState, queue_size = 1)
 	self.tau = tau
-	self.prev_z = 0.0
-	self.current_z = 0.0
 
 	if self.controller == 'PID' :
 		
@@ -97,8 +95,8 @@ class DQN:
 			self.kd = 15.5
 
 		elif self.param == 'Roll':
-			self.kp = 1
-			self.kd = 1
+			self.kp = 2
+			self.kd = 15.5
 	
 
 
@@ -128,7 +126,7 @@ class DQN:
 
 
     #Take an action
-    def play(self) :
+    def run(self) :
 
 	current_state = self.state
 	current_action = None
@@ -177,12 +175,14 @@ class DQN:
 	print "current_state = " + str(current_state)
 
 	#Execute the current action
-	self.execute_action(current_action)
+	#self.execute_action(current_action)
 
 	self.current_state = current_state
 	self.current_action = current_action
 	self.current_value = current_value
 	self.current_count = current_count
+
+	return current_action
 
 
 
@@ -338,7 +338,7 @@ class DQN:
 		current_q_values = self.function_approximator.predict(current_state.reshape(1,len(state)),batch_size = 1)
 
 		#Use the frozen target Q network for getting the next value
-		next_action, next_value, next_q_values, next_action_index = self.get_best_action_value(next_state, possible_actions)#, use_target = True)
+		next_action, next_value, next_q_values, next_action_index = self.get_best_action_value(next_state, possible_actions, use_target = True)
 
 		target = numpy.zeros((1,len(current_q_values[0])))
 
@@ -353,7 +353,7 @@ class DQN:
 		else :
 			target[0][current_action_index] += (self.learning_rate)*(immediate_reward + self.discount_factor*next_value - target[0][current_action_index])
 
-		#target[0][current_action_index] = immediate_reward
+		target[0][current_action_index] = immediate_reward
 
 		training_input.append(current_state.reshape(len(state),))
 
@@ -404,8 +404,10 @@ class DQN:
 
 				PID = (self.kp * self.current_state[0]) + (self.kd* self.current_state[1])
 				PID_limited =  max(min(PID,self.max_value) , self.min_value)
+				if random.random() > self.epsilon :
+					PID_limited += random.choice(self.actions)/2.0
 				index, action = min(enumerate(possible_actions), key=lambda x: abs(x[1]-PID_limited))
-				print " PID = " + str(PID_limited) + " ,action = " +str(action)+' ,index = ' +str(index)
+				print " PID = " + str(PID) + " ,PID Limited = " + str(PID_limited) + " ,action = " +str(action)+' ,index = ' +str(index)
 	
 			else :
 			
@@ -545,9 +547,6 @@ class DQN:
     #Initialize Neural Network
     def initialize_neural_network(self) :
 
-	#Create a sequential neural network with 2 hidden layers of 27 and 18 neurons respectively, the output layer
-	#consists of 9 neurons which maps to box numbers in the Tic Tac Toe Board
-
 	model = Sequential()
 
 	model.add(Dense(100, init='lecun_uniform', input_shape=(2,)))
@@ -560,8 +559,7 @@ class DQN:
 	model.add(Dense(len(self.actions), init='lecun_uniform'))
 	model.add(Activation('linear'))
 
-	rms = RMSprop()
-	#adam = Adam(lr=0.001)
+	rms = RMSprop(lr=0.00025)
 	model.compile(loss='mse', optimizer=rms)
 
 	return model
@@ -569,126 +567,51 @@ class DQN:
 
     #Reward Function
     def get_reward(self,state) :
-
-	#reward = math.exp(-abs(state[0])/0.2)* math.exp(-abs(state[1])/0.3)
 	
-	if self.function_approximation :
+	reward = math.exp(-abs(state[0])/0.1)* math.exp(-abs(state[1])/0.1)
 	
-		reward = math.exp(-abs(state[0])/0.2)* math.exp(-abs(state[1])/0.3)
-
-#		if abs(state[0]) >= abs(self.initial_state[0]) or abs(state[1]) >= 5 :
-#			reward = -1.0
-
-#		elif abs(state[0]) <= 0.05 and abs(state[1]) <= 0.005 :
-#			reward = 1.0
-#	
-#		else :
-#			reward = 0
-
-	else :
-#		if abs(state[0]) <= 0.05 and abs(state[1]) <= 0.001 :
-#			reward = 1
-
-#		elif abs(state[0]) >= abs(self.initial_state[0]) or abs(state[1]) >= 5 :
-#			reward = -1
-
-#		else :
-#			reward = 0
-
-		reward = math.exp(-abs(state[0])/0.2)* math.exp(-abs(state[1])/0.3)
+	print "reward = " + str(reward)
 	
-	print reward
-
 	return reward
 
     #Get state of the game
     def get_state(self, msg) :
 
-	if self.function_approximation :
 
-		if self.param == 'Roll' :
-			value = msg.point.y
-		elif self.param == 'Pitch' :
-			value = msg.point.x
-		else :
-			value = msg.point.z
+	if self.param == 'Roll' :
+		value = msg.point.y
+
+	elif self.param == 'Pitch' :
+		value = msg.point.x
+
+	else :
+		value = msg.point.z
+
+	if self.function_approximation :
 
 		state = round(self.setpoint - value, 4)
 		self.state = numpy.array((state, round(state - self.current_state[0],4)))
 
-
-		if self.param != 'Thrust':
-			
-			error_z = 0.6 - msg.point.z
-			derror_z = error_z - self.prev_z
-			self.current_z = error_z
-			self.cmd.thrust.z = 15.0 + 1.0*error_z + 12.0*derror_z
-	
-
 		if self.initialized is False :
 			self.initial_state = numpy.array((state, 0.0))
 			self.state = self.initial_state
-			self.prev_z = 0.0
 			self.initialized = True
 
 	else :
-
-		if self.param == 'Roll' :
-			value = msg.point.y
-		elif self.param == 'Pitch' :
-			value = msg.point.x
-		else :
-			value = msg.point.z
 
 		state = round(self.setpoint - value,3 )
 		self.state = (state, round(state - self.current_state[0],3))
 
-		if self.param != 'Thrust':
-			
-			error_z = 0.6 - msg.point.z
-			derror_z = error_z - self.prev_z
-			self.current_z = error_z
-			self.cmd.thrust.z = 15.0 + 1.0*error_z + 12.0*derror_z
-
 		if self.initialized is False :
-			self.initial_state = numpy.array((state, 0.0))
+			self.initial_state = (state, 0.0)
 			self.state = self.initial_state
-			self.prev_z = 0.0
 			self.initialized = True
 
 
-    def execute_action(self,action) :
-
-	self.cmd.header.stamp = rospy.Time.now()
-
-	if self.param == 'Pitch':
-
-		self.cmd.pitch = action
-
-		print "Pitch = " + str(self.cmd.pitch) 
-
-	elif self.param == 'Roll' :
-
-		self.cmd.roll = action
-
-		print "Roll = " + str(self.cmd.roll) 
-
-	else :
-
-		self.cmd.thrust.z =  15.0 + action
-
-		print "Thrust = " + str(self.cmd.thrust.z) 
-
-	self.prev_z = self.current_z
-	self.cmd_publisher.publish(self.cmd)	
-	
-
     def decrement_epsilon(self,value) :
 
-	if self.epsilon > 0.0 :
+	if self.epsilon > 0.1 :
 		self.epsilon -= 1.0/value
-	else :
-		self.epsilon = 0.0
 
     def train_target_q_network(self) :
 
@@ -764,47 +687,19 @@ class DQN:
 
 	print self.file_name + ' saved'	
 
+    def check_validity(self) :
+
+	if abs(self.state[0]) > 1.5*abs(self.initial_state[0]) or abs(self.state[1]) > 5 :
+		return False
+
+	else :
+		return True
+
+
     def reset(self) :
 
-
-	cmd = RollPitchYawrateThrust()
-	cmd.header.stamp = rospy.Time.now()
-	cmd.roll = 0.0
-	cmd.pitch = 0.0
-	cmd.thrust.z = 0.0
-	self.reset_flag = True
-	self.cmd_publisher.publish(cmd)	
-
-	time.sleep(0.2)
-		
-	reset_cmd = ModelState()
-	reset_cmd.model_name = self.drone
-	reset_cmd.pose.position.x = 0.0
-	reset_cmd.pose.position.y = 0.0
-	reset_cmd.pose.position.z = 0.07999
-	reset_cmd.pose.orientation.x = 0.0
-	reset_cmd.pose.orientation.y = 0.0
-	reset_cmd.pose.orientation.z = 0.0
-	reset_cmd.pose.orientation.w = 1.0
-	reset_cmd.twist.linear.x = 0.0
-	reset_cmd.twist.linear.y = 0.0
-	reset_cmd.twist.linear.z = 0.0
-	reset_cmd.twist.angular.x = 0.0
-	reset_cmd.twist.angular.y = 0.0
-	reset_cmd.twist.angular.z = 0.0
-	reset_cmd.reference_frame= 'world'
-
-	self.state_publisher.publish(reset_cmd)
-
-	self.cmd_vel = 0.0
 	self.initialized = False
-	#self.current_state = self.initial_state
-	self.reset_flag = False
 
-	self.prev_z = 0.0
-	self.current_z = 0.0
-
-	time.sleep(0.2)
 	
 
 	
