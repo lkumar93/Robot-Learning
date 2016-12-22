@@ -32,6 +32,8 @@ import matplotlib.pyplot as plotter
 
 from DeepQNetwork import DQN
 from rospy.exceptions import ROSException
+from mav_msgs.msg import RollPitchYawrateThrust
+from gazebo_msgs.msg import ModelState
 
 ###########################################
 ##
@@ -39,14 +41,152 @@ from rospy.exceptions import ROSException
 ##
 ###########################################
 
-EPOCHS = 500
-FPS = 40
-STEPS = FPS*20
+EPOCHS = 50000
+FPS = 10
+STEPS = FPS*10
 STEP_RANGE = range(0,STEPS)
 EPOCH_RANGE = range(0,EPOCHS)
+DRONE = 'ardrone'
+TUNEPARAM = 'Thrust'
 
-DQN_FLAG = False
-TRAIN_FLAG = False
+DQN_FLAG = True
+TRAIN_FLAG = True
+
+###########################################
+##
+##	HELPER FUNCTIONS
+##
+###########################################
+
+def init_controllers() :
+
+	thrust_controller = DQN(DRONE, param = 'Thrust', controller = 'PID', action_limits = [-0.75,1.0], action_step_size = 0.25 , setpoint = 0.5, function_approximation = DQN_FLAG, epsilon = 1.0)
+	roll_controller = DQN(DRONE, param = 'Roll', controller = 'PID', setpoint = 0.5, function_approximation = DQN_FLAG, epsilon = 1.0)	
+	pitch_controller = DQN(DRONE, param = 'Pitch', controller = 'PID', setpoint = 0.5, function_approximation = DQN_FLAG, epsilon = 1.0)
+
+	return [thrust_controller,roll_controller,pitch_controller]
+
+def run(controllers, cmd_publisher) :
+
+	cmd = RollPitchYawrateThrust()
+
+	cmd.header.stamp = rospy.Time.now()
+
+	for controller in controllers:
+
+		if controller.param == 'Thrust' :
+
+			cmd.thrust.z = 15.0 + controller.run()
+			print "Thrust = " + str(cmd.thrust.z)
+
+		elif controller.param == 'Roll' :
+
+			cmd.roll = controller.run()
+			print "Roll = " + str(cmd.roll)
+
+		elif controller.param == 'Pitch' :
+
+			cmd.pitch = controller.run()
+			print "Pitch = " + str(cmd.pitch)
+
+	cmd_publisher.publish(cmd)
+
+def epsilon_decay(controllers) :
+	
+	for controller in controllers :
+
+		controller.decrement_epsilon(STEPS*EPOCHS)
+
+
+def update(controllers) :
+	
+	reward = 0.0
+
+	for controller in controllers:
+
+		reward+=controller.update_policy()
+
+	return reward
+
+
+def tune_pid(controllers, param, val, coeff) :
+	
+	for controller in controllers :
+	
+		if controller.param == param and controller.controller == 'PID':
+
+			if coeff == 'kp' :
+
+				controller.kp += val
+
+			elif coeff == 'kd' :
+				
+				controller.kd += val
+
+		        print param+" Kd Value = " + str(controller.kd)
+		        print param+" Kp Value = " + str(controller.kp)
+
+def check_validity(controllers) :
+
+	for controller in controllers :
+
+		if controller.check_validity() is False :
+
+			return False
+
+	return True
+
+def extract_state(controllers,param) :
+
+	for controller in controllers :
+
+		if controller.param == param :
+
+			return controller.state[0]
+
+
+def simulator_reset(controllers,cmd_publisher,gazebo_publisher) :
+
+
+	cmd = RollPitchYawrateThrust()
+	cmd.header.stamp = rospy.Time.now()
+	cmd.roll = 0.0
+	cmd.pitch = 0.0
+	cmd.thrust.z = 0.0
+
+	cmd_publisher.publish(cmd)
+
+	time.sleep(0.1)
+
+	reset_cmd = ModelState()
+	reset_cmd.model_name = DRONE
+	reset_cmd.pose.position.x = 0.0
+	reset_cmd.pose.position.y = 0.0
+	reset_cmd.pose.position.z = 0.07999
+	reset_cmd.pose.orientation.x = 0.0
+	reset_cmd.pose.orientation.y = 0.0
+	reset_cmd.pose.orientation.z = 0.0
+	reset_cmd.pose.orientation.w = 1.0
+	reset_cmd.twist.linear.x = 0.0
+	reset_cmd.twist.linear.y = 0.0
+	reset_cmd.twist.linear.z = 0.0
+	reset_cmd.twist.angular.x = 0.0
+	reset_cmd.twist.angular.y = 0.0
+	reset_cmd.twist.angular.z = 0.0
+	reset_cmd.reference_frame= 'world'
+
+	gazebo_publisher.publish(reset_cmd)
+
+	time.sleep(0.05)
+
+	for controller in controllers :
+		controller.reset()
+
+	time.sleep(0.05)
+
+
+
+
 
 ###########################################
 ##
@@ -77,7 +217,7 @@ if __name__ == '__main__':
 				DQN_FLAG = True
 
 			elif arg == 'False' :
-				DQN_FLAG= False
+				DQN_FLAG = False
 
 			else :
 				print 'Usage: python Train.py -f <bool> -e <bool>'
@@ -97,125 +237,119 @@ if __name__ == '__main__':
 
 				sys.exit(2)
 
-		
-	
-	print "initialized"
+	cmd_topic = '/'+ DRONE+'/command/roll_pitch_yawrate_thrust'
 
-	rate = rospy.Rate(12)
-	epsilon_decay = []
+	cmd_publisher = rospy.Publisher(cmd_topic, RollPitchYawrateThrust, queue_size = 1)
+	gazebo_publisher = rospy.Publisher('/gazebo/set_model_state', ModelState, queue_size = 1)
+
+	rate = rospy.Rate(FPS)
+
 	pygame.init()
 	pygame.display.set_mode((20, 20))
 	clock = pygame.time.Clock()
 	rewards_per_episode = []
 	count = 0
 
+	#Initialize position controllers as DQN Agents
+	controllers = init_controllers()
+
+	print "initialized"
+
 	#If the user wants to train
 	if TRAIN_FLAG :
 
-		#Initialize thrust controller as a DQN Agent
-		thrust_controller = DQN('ardrone', param = 'Pitch', controller = 'PID', setpoint = 0.5, function_approximation = DQN_FLAG, epsilon = 1.0)
-
+		
 		#For n episodes and m steps keep looping
 	 	for i in EPOCH_RANGE :
 		
-			thrust_controller.reset()
+			simulator_reset(controllers,cmd_publisher,gazebo_publisher)
 			total_reward_per_episode = 0.0			
 
 			for j in STEP_RANGE :
 
-				thrust_controller.play()
+				run(controllers,cmd_publisher)
+
 				rate.sleep()
 
-				quit = False	
-
-				total_reward_per_episode += thrust_controller.update_policy()
-				thrust_controller.decrement_epsilon(STEPS*EPOCHS)
+				total_reward_per_episode += update(controllers)
+				epsilon_decay(controllers)
 
 				#Reset if drone goes out of bounds
-				if abs(thrust_controller.state[0]) > 1.5 * abs(thrust_controller.initial_state[0]) or  abs(thrust_controller.state[1]) > 5  :
+				if check_validity(controllers) is False :
 
-					thrust_controller.reset()
+					simulator_reset(controllers, cmd_publisher, gazebo_publisher)
 					rate.sleep()
 					break
 
 				for event in pygame.event.get():
 
 					if event.type == pygame.QUIT:
-					    thrust_controller.reset()
+
+					    simulator_reset(controllers, cmd_publisher, gazebo_publisher)
 					    pygame.quit(); 
 					    sys.exit() 
 
 					#For tuning PID controllers  
-					if event.type == pygame.KEYDOWN and thrust.controller == 'PID':
+					if event.type == pygame.KEYDOWN :
 
 					    if event.key == pygame.K_UP:
-						thrust_controller.kp += 0.5
+						tune_pid(controllers, TUNEPARAM , 0.5, 'kp') 
 				
 					    if event.key == pygame.K_DOWN:
-						thrust_controller.kp -= 0.5
+						tune_pid(controllers, TUNEPARAM , -0.5, 'kp') 
 
 					    if event.key == pygame.K_LEFT:
-						thrust_controller.kd += 0.5
+						tune_pid(controllers, TUNEPARAM, 0.5, 'kd') 
 
 					    if event.key == pygame.K_RIGHT:
-						thrust_controller.kd -= 0.5
+						tune_pid(controllers, TUNEPARAM , -0.5, 'kd') 
 
 				    	    if event.key == pygame.K_q:
-						thrust_controller.reset()
+						simulator_reset(controllers,cmd_publisher,gazebo_publisher)
 						time.sleep(2)
 						break;
 
-					    print "Kd Value = " + str(thrust_controller.kd)
-					    print "Kp Value = " + str(thrust_controller.kp)
 				count += 1
 
 
-				print " Count = " + str(count) +" ,Epsilon = " + str(thrust_controller.epsilon)
+				print " Count = " + str(count) +" ,Epsilon = " + str(controllers[0].epsilon)
 	
 			rewards_per_episode.append(total_reward_per_episode)
-			epsilon_decay.append(thrust_controller.epsilon)
-
-			print '\n \n \n rewards =' +str(total_reward_per_episode) + " ,epoch = "+str(i)
 	
+			print '\n \n \n rewards =' +str(total_reward_per_episode) + " ,epoch = "+str(i)	
 
 		
-			clock.tick(60)
+			clock.tick(FPS*2)
 
 		plotter.figure()		
 
-		plotter.plot(EPOCH_RANGE, rewards_per_episode ,'g',label='Rewards' )
-		plotter.plot(EPOCH_RANGE, epsilon_decay ,'r',label='Epsilon' )
-		#plotter.plot(range_of_values,drawing_percentages ,'b',label='Draws' )
+		plotter.plot(EPOCH_RANGE, rewards_per_episode,'g',label='Rewards' )
 
 		plotter.xlabel('Episode')
 		plotter.ylabel('Rewards')
 
-		plotter.legend(loc='lower right', shadow=True)
+		plotter.title('Learning Curve ')
 
-		plotter.title('Learning Curve - Thrust')
-
-		plotter.savefig('../figures/ThrustLearningCurve.png')
+		plotter.savefig('../figures/LearningCurve.png')
 
 		plotter.show()
 
 	else :
-		thrust_controller = DQN('ardrone', param = 'Pitch', controller = 'PID', setpoint = 0.5, function_approximation = DQN_FLAG, epsilon = -0.1)
-		thrust_controller.reset()
+
+		simulator_reset(controllers,cmd_publisher,gazebo_publisher)
 		
 		count = 0
 		states = []
 		while not rospy.is_shutdown():
 
 			count = count + 1
-
-			thrust_controller.play()
+			run(controllers,cmd_publisher)
 			rate.sleep()
-			#thrust_controller.update_policy()
+			
+			if check_validity(controllers) is False :
+				simulator_reset(controllers,cmd_publisher,gazebo_publisher)
 
-			if abs(thrust_controller.state[0]) > 2* abs(thrust_controller.initial_state[0]) or  abs(thrust_controller.state[1]) > 10  :
-				thrust_controller.reset()
-
-			states.append(thrust_controller.state[0])
+			states.append(extract_state(controllers,'Thrust'))
 
 			if count > 500 :
 				break
@@ -224,8 +358,8 @@ if __name__ == '__main__':
 		plotter.plot(range(0,len(states)), states ,'g',label='Error' )
 		plotter.xlabel('Time')
 		plotter.ylabel('Error')
-		plotter.title('Pitch Learning Curve - PID ')
-		plotter.savefig('../figures/PitchLearningCurvePID2.png')
+		plotter.title('Learning Curve - PID ')
+		plotter.savefig('../figures/LearningCurvePID.png')
 		plotter.show()
 		
 
