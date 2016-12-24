@@ -65,8 +65,8 @@ class Actor :
 		self.state = Input(shape=[state_dim])
 		self.target = self.state
 	
-		self.file_name = file_name #'actor_network.h5'
-		self.target_file_name = target_file_name #'actor_target_network.h5'
+		self.file_name = file_name 
+		self.target_file_name = target_file_name 
 
 		self.load_network()
 
@@ -77,7 +77,6 @@ class Actor :
 		self.optimizer = tf.train.AdamOptimizer(self.learning_rate).apply_gradients(gradients)
 
 		self.tf_session.run(tf.initialize_all_variables())
-
 
 
 	def train(self,states,action_gradients) :
@@ -164,8 +163,8 @@ class Critic :
 		self.state = Input(shape=[self.state_dim])
 		self.action = Input(shape=[self.action_dim],name='action_input')
 
-		self.file_name = file_name #'critic_network.h5'
-		self.target_file_name = target_file_name #'critic_target_network.h5'
+		self.file_name = file_name
+		self.target_file_name = target_file_name
 
 		self.load_network()
 
@@ -270,7 +269,6 @@ class DDPG:
 	self.state = (0.0,0.0)
 	self.initial_state = (0.0,0.0)
 	self.current_state = (0.0,0.0)
-	self.cmd_vel = 0.0
 	self.epochs = 0
 	self.current_action = 0.0 
 	self.episode = 1
@@ -322,10 +320,8 @@ class DDPG:
 
 	self.replay_count = 0
 
-	cmd_topic = '/'+ self.drone+'/command/roll_pitch_yawrate_thrust'
 	sub_topic = '/'+ self.drone+'/ground_truth/position'
-	self.cmd_publisher = rospy.Publisher(cmd_topic, RollPitchYawrateThrust, queue_size = 1)
-	self.state_publisher = rospy.Publisher('/gazebo/set_model_state', ModelState, queue_size = 1)
+
 	rospy.Subscriber(sub_topic, PointStamped, self.get_state)
 	
 	time.sleep(0.2)
@@ -336,33 +332,19 @@ class DDPG:
 	current_state = self.state
 	
 	current_action = self.get_action(current_state)		
-
-	#Execute the current action
-	self.execute_action(current_action[0][0])
-
 	self.current_state = current_state
 	self.current_action = current_action[0]
 	self.count += 1.0
 	
 	print "state = "+ str(current_state) + ", action = " + str(round(current_action,2))
 
+	return current_action[0][0]
 
-    def execute_action(self,action) :
 
-	cmd = RollPitchYawrateThrust()
-	cmd.header.stamp = rospy.Time.now()
-	self.cmd_vel = action*self.control_factor
-	cmd.thrust.z = 15.0 + self.cmd_vel#2.0*self.current_state[0] +12*self.current_state[1]#
-	
-	print "Thrust = " + str(self.cmd_vel) #str(cmd.thrust.z)#
-
-	self.cmd_publisher.publish(cmd)	
-	
-
-    #Update the Q(s,a) table	
+    #Update the Actor and Critic Networks	
     def update(self) :
 
-	#Find the next state after the second player has played
+	#Find the next state after the controller has taken its current action
 	next_state = self.state
 
 	print "next_state = " + str(next_state)
@@ -375,7 +357,7 @@ class DDPG:
 
 	self.epochs += 1
 
-	#Save policy once in every 10000 episodes
+	#Save policy once in every 1000 episodes
 	if self.epochs % 1000 == 0 :
 		#Save the updated policy
 		self.actor.save_network()
@@ -527,7 +509,6 @@ class DDPG:
 		self.initial_state = numpy.hstack((round(state,2), 0.0))
 		self.state = self.initial_state
 		self.initialized = True
-
   
 
     def decrement_epsilon(self,value) :
@@ -535,48 +516,15 @@ class DDPG:
 	if self.epsilon > 0.01 :
 		self.epsilon -= 1.0/value
 
+    def check_validity(self) :
+
+	if abs(self.state[0]) > 1.5*abs(self.initial_state[0]) or abs(self.state[1]) > 5 :
+		return False
+
+	else :
+		return True
+
+
     def reset(self) :
 
-	cmd = RollPitchYawrateThrust()
-	cmd.header.stamp = rospy.Time.now()
-	cmd.roll = 0.0
-	cmd.pitch = 0.0
-	cmd.thrust.z = 0.0
-	self.reset_flag = True
-	self.cmd_publisher.publish(cmd)	
-
-	time.sleep(0.2)
-		
-	reset_cmd = ModelState()
-	reset_cmd.model_name = self.drone
-	reset_cmd.pose.position.x = 0.0
-	reset_cmd.pose.position.y = 0.0
-	reset_cmd.pose.position.z = 0.07999
-	reset_cmd.pose.orientation.x = 0.0
-	reset_cmd.pose.orientation.y = 0.0
-	reset_cmd.pose.orientation.z = 0.0
-	reset_cmd.pose.orientation.w = 1.0
-	reset_cmd.twist.linear.x = 0.0
-	reset_cmd.twist.linear.y = 0.0
-	reset_cmd.twist.linear.z = 0.0
-	reset_cmd.twist.angular.x = 0.0
-	reset_cmd.twist.angular.y = 0.0
-	reset_cmd.twist.angular.z = 0.0
-	reset_cmd.reference_frame= 'world'
-
-	self.state_publisher.publish(reset_cmd)
-
-	self.cmd_vel = 0.0
-	self.current_state = self.initial_state
-	self.initialized = False	
-	self.reset_flag = False
-
-	time.sleep(0.2)
-	
-	print ' \n \n \n resetting \n \n \n'
-
-
-
-
-	
-	
+	self.initialized = False
