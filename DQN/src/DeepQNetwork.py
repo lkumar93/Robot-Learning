@@ -76,12 +76,9 @@ class DQN:
 	self.actions = random.sample(self.actions,len(self.actions))
 	self.reset_flag = False
 	self.epochs = 0 
-	self.cmd = RollPitchYawrateThrust()
 
-	cmd_topic = '/'+ drone+'/command/roll_pitch_yawrate_thrust'
 	sub_topic = '/'+ drone+'/ground_truth/position'
-	self.cmd_publisher = rospy.Publisher(cmd_topic, RollPitchYawrateThrust, queue_size = 1)
-	self.state_publisher = rospy.Publisher('/gazebo/set_model_state', ModelState, queue_size = 1)
+	rospy.Subscriber(sub_topic, PointStamped, self.get_state)
 	self.tau = tau
 
 	if self.controller == 'PID' :
@@ -97,10 +94,6 @@ class DQN:
 		elif self.param == 'Roll':
 			self.kp = 2
 			self.kd = 15.5
-	
-
-
-	rospy.Subscriber(sub_topic, PointStamped, self.get_state)
 
 	if replay is None :
 
@@ -200,8 +193,6 @@ class DQN:
 	next_q_values = None
 
 	reward = self.get_reward(next_state)
-
-	#Check which moves are legal	
 
 	if self.function_approximation :
 
