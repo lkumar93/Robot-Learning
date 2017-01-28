@@ -29,6 +29,7 @@ import rospy
 import time
 import traceback
 import matplotlib.pyplot as plotter
+import numpy
 
 from DeepQNetwork import DQN
 from rospy.exceptions import ROSException
@@ -41,9 +42,9 @@ from gazebo_msgs.msg import ModelState
 ##
 ###########################################
 
-EPOCHS = 50000
-FPS = 10
-STEPS = FPS*10
+FPS = 13
+STEPS = FPS*15
+EPOCHS = 10*(FPS*60*60)
 STEP_RANGE = range(0,STEPS)
 EPOCH_RANGE = range(0,EPOCHS)
 DRONE = 'ardrone'
@@ -59,8 +60,13 @@ TRAIN_FLAG = True
 ###########################################
 
 def init_controllers() :
+	
+	EPSILON = 0.0
 
-	thrust_controller = DQN(DRONE, param = 'Thrust', controller = 'PID', action_limits = [-0.75,1.0], action_step_size = 0.25 , setpoint = 0.5, function_approximation = DQN_FLAG, epsilon = 1.0)
+	if TRAIN_FLAG is True :
+		EPSILON = 1.0
+
+	thrust_controller = DQN(DRONE, param = 'Thrust', controller = 'PID', action_limits = [-0.75,1.0], action_step_size = 0.25 , setpoint = 0.5, function_approximation = DQN_FLAG, epsilon = EPSILON)
 	roll_controller = DQN(DRONE, param = 'Roll', controller = 'PID', setpoint = 0.5, function_approximation = DQN_FLAG, epsilon = 1.0)	
 	pitch_controller = DQN(DRONE, param = 'Pitch', controller = 'PID', setpoint = 0.5, function_approximation = DQN_FLAG, epsilon = 1.0)
 
@@ -144,6 +150,11 @@ def extract_state(controllers,param) :
 
 			return controller.state[0]
 
+def randomize_target(controllers,min_value,max_value) :
+
+	for controller in controllers :
+		
+		controller.setpoint = round(numpy.random.uniform(min_value,max_value),max_value)
 
 def simulator_reset(controllers,cmd_publisher,gazebo_publisher) :
 
@@ -261,6 +272,12 @@ if __name__ == '__main__':
 		
 		#For n episodes and m steps keep looping
 	 	for i in EPOCH_RANGE :
+
+			
+			#Randomize setpoints for all the controllers once in 15 episodes
+			if i%15 == 0 :
+
+				randomize_target(controllers,0.5,2)
 		
 			simulator_reset(controllers,cmd_publisher,gazebo_publisher)
 			total_reward_per_episode = 0.0			
