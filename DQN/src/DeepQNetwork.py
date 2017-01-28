@@ -66,9 +66,9 @@ class DQN:
 	self.buffer_size = buffer_size
 	self.mini_batch_size = mini_batch_size
 	self.initialized = False
-	self.initial_state = (0.0,0.0)
-	self.current_state = (0.0,0.0)
-	self.state = (0.0,0.0)
+	self.initial_state = (0.0,0.0,0)
+	self.current_state = (0.0,0.0,0)
+	self.state = (0.0,0.0,0)
 	self.min_value = action_limits[0]
 	self.max_value = action_limits[1]
 	self.step_size = action_step_size
@@ -76,6 +76,9 @@ class DQN:
 	self.actions = random.sample(self.actions,len(self.actions))
 	self.reset_flag = False
 	self.epochs = 0 
+	self.prev_error = 0.0
+	self.prev_derror = 0.0
+	self.count = 0
 
 	sub_topic = '/'+ drone+'/ground_truth/position'
 	rospy.Subscriber(sub_topic, PointStamped, self.get_state)
@@ -540,11 +543,11 @@ class DQN:
 
 	model = Sequential()
 
-	model.add(Dense(100, init='lecun_uniform', input_shape=(2,)))
+	model.add(Dense(300, init='lecun_uniform', input_shape=(3,)))
 	model.add(Activation('relu'))
 	model.add(Dropout(0.2))
 
-	model.add(Dense(200, init='lecun_uniform'))
+	model.add(Dense(600, init='lecun_uniform'))
 	model.add(Activation('relu'))
 	
 	model.add(Dense(len(self.actions), init='lecun_uniform'))
@@ -580,23 +583,43 @@ class DQN:
 
 	if self.function_approximation :
 
-		state = round(self.setpoint - value, 4)
-		self.state = numpy.array((state, round(state - self.current_state[0],4)))
+		error = round(self.setpoint - value, 4)
+		derror = round(error - self.current_state[0],4)
+
+		if error-self.prev_error == 0.0 and derror-self.prev_derror == 0.0 :
+			self.count += 1
+		else :
+			self.count = 0
+		
+		self.state = numpy.array((error, derror, self.count))
 
 		if self.initialized is False :
-			self.initial_state = numpy.array((state, 0.0))
+			self.initial_state = numpy.array((error, 0.0, 0))
 			self.state = self.initial_state
 			self.initialized = True
+
+		self.prev_error = error
+		self.prev_derror = derror
 
 	else :
 
-		state = round(self.setpoint - value,3 )
-		self.state = (state, round(state - self.current_state[0],3))
+		error = round(self.setpoint - value, 3)
+		derror = round(error - self.current_state[0],3)
+
+		if error-self.prev_error == 0.0 and derror-self.prev_derror == 0.0 :
+			self.count += 1
+		else :
+			self.count = 0
+
+		self.state = numpy.array((error, derror,self.count))
 
 		if self.initialized is False :
-			self.initial_state = (state, 0.0)
+			self.initial_state = (error, 0.0,0)
 			self.state = self.initial_state
 			self.initialized = True
+
+		self.prev_error = error
+		self.prev_derror = derror
 
 
     def decrement_epsilon(self,value) :
