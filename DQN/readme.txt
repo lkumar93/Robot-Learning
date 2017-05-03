@@ -27,7 +27,7 @@
 	3) sudo apt-get install python-pip
 	4) pip install h5py
 	5) sudo apt-get install libhdf5-serial-dev
-	6) sudo apt-get install python-numpy python-scipy python-dev python-pip python-nose g++ libopenblas-dev git
+	6) sudo apt-get install python-numpy python-scipy python-dev python-pip python-nose g++ libopenblas-dev git liblapack-dev gfortran
 	7) sudo pip install Theano
 	8) sudo pip install keras
  	9) sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu `lsb_release -sc` main" > /etc/apt/sources.list.d/ros-latest.list'
