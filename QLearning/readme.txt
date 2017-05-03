@@ -28,7 +28,7 @@
 	4) pip install h5py
 	5) sudo apt-get install libhdf5-serial-dev
 	6) sudo apt-get install python-numpy python-scipy python-dev python-pip python-nose
-	   g++ libopenblas-dev git
+	   g++ libopenblas-dev git liblapack-dev gfortran
 	7) sudo pip install Theano
 	8) sudo pip install keras
 
